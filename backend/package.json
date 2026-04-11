@@ -1,4 +1,4 @@
-﻿{
+{
   "name": "finansanaliz-backend",
   "version": "1.0.0",
   "type": "module",
@@ -27,5 +27,8 @@
   },
   "devDependencies": {
     "nodemon": "^3.0.2"
+  },
+  "prisma": {
+    "seed": "node prisma/seed.js"
   }
 }
