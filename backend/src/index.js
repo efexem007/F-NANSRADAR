@@ -15,6 +15,7 @@ import uploadRoutes from './routes/upload.js';
 import macroRoutes from './routes/macro.js';
 import reportRoutes from './routes/report.js';
 import backtestRoutes from './routes/backtest.js';
+import scanRoutes from './routes/scan.js';
 
 dotenv.config();
 
@@ -44,6 +45,7 @@ app.use('/api/upload', uploadRoutes);
 app.use('/api/macro', macroRoutes);
 app.use('/api/report', reportRoutes);
 app.use('/api/backtest', backtestRoutes);
+app.use('/api/scan', scanRoutes);
 
 // Health check
 app.get('/api/health', (req, res) => {
@@ -56,11 +58,16 @@ app.use((err, req, res, next) => {
   res.status(500).json({ error: 'Something went wrong!' });
 });
 
-// Cron job for updating stock data
-cron.schedule('0 9 * * 1-5', async () => {
-  // Update stock prices on weekdays at 9 AM
-  console.log('Updating stock data...');
-  // TODO: Implement stock update logic
+// Cron job for automatic scanning (09:00, 13:00, 18:00)
+import { scanAllStocks } from './services/scanner.js';
+cron.schedule('0 9,13,18 * * *', async () => {
+  console.log('Otomatik tarama başlıyor (Scanner v4.0)...');
+  try {
+    const results = await scanAllStocks();
+    console.log(`${results.length} hisse başarıyla tarandı.`);
+  } catch (error) {
+    console.error('Otomatik tarama hatası:', error.message);
+  }
 });
 
 // Start server

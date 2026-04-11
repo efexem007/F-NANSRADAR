@@ -14,6 +14,7 @@ import Backtest from './pages/Backtest'
 import Macro from './pages/Macro'
 import Settings from './pages/Settings'
 import StockDetail from './pages/StockDetail'
+import Scanner from './pages/Scanner'
 
 function AnimatedRoutes() {
   const location = useLocation()
@@ -32,6 +33,7 @@ function AnimatedRoutes() {
               <Route path="/signals" element={<Signals />} />
               <Route path="/backtest" element={<Backtest />} />
               <Route path="/macro" element={<Macro />} />
+              <Route path="/scanner" element={<Scanner />} />
               <Route path="/settings" element={<Settings />} />
               <Route path="/stock/:ticker" element={<StockDetail />} />
               <Route path="*" element={<Navigate to="/" replace />} />
