@@ -1,0 +1,128 @@
+﻿generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id        String   @id @default(uuid())
+  email     String   @unique
+  password  String
+  name      String?
+  createdAt DateTime @default(now())
+  portfolios Portfolio[]
+}
+
+model Portfolio {
+  id        String   @id @default(uuid())
+  name      String   @default("Ana Portfoy")
+  userId    String
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  items     PortfolioItem[]
+}
+
+model PortfolioItem {
+  id          String   @id @default(uuid())
+  portfolioId String
+  ticker      String
+  shares      Float
+  avgCost     Float
+  portfolio   Portfolio @relation(fields: [portfolioId], references: [id], onDelete: Cascade)
+  @@unique([portfolioId, ticker])
+}
+
+model Stock {
+  ticker        String   @id
+  name          String
+  sector        String?
+  lastPrice     Float?
+  lastUpdate    DateTime?
+  fundamental   FundamentalData[]
+  pricePoints   PricePoint[]
+  ratios        StockRatio?
+}
+
+model FundamentalData {
+  id                 String   @id @default(uuid())
+  stockTicker        String
+  period             String
+  currentAssets      Float
+  currentLiabilities Float
+  inventory          Float?
+  totalAssets        Float
+  equity             Float
+  netSales           Float
+  grossProfit        Float?
+  ebitda             Float?
+  netProfit          Float?
+  netFinancialDebt   Float?
+  sharesOutstanding  Float?
+  stock              Stock    @relation(fields: [stockTicker], references: [ticker])
+  @@unique([stockTicker, period])
+}
+
+model PricePoint {
+  id          String   @id @default(uuid())
+  stockTicker String
+  date        DateTime
+  open        Float
+  high        Float
+  low         Float
+  close       Float
+  volume      Float
+  stock       Stock    @relation(fields: [stockTicker], references: [ticker])
+  @@unique([stockTicker, date])
+}
+
+model StockRatio {
+  stockTicker     String   @id
+  currentRatio    Float?
+  acidTest        Float?
+  grossMargin     Float?
+  netMargin       Float?
+  leverage        Float?
+  nfbToEbitda     Float?
+  fk              Float?
+  pddd            Float?
+  calculatedAt    DateTime @default(now())
+  stock           Stock    @relation(fields: [stockTicker], references: [ticker])
+}
+
+model MacroIndicator {
+  id          String   @id @default(uuid())
+  type        String
+  value       Float
+  date        DateTime @default(now())
+  note        String?
+  @@index([type, date(sort: Desc)])
+}
+
+model SignalHistory {
+  id          String   @id @default(uuid())
+  ticker      String
+  signal      String
+  score       Int
+  price       Float
+  createdAt   DateTime @default(now())
+  @@index([ticker, createdAt])
+}
+
+model TechnicalIndicator {
+  id          String   @id @default(uuid())
+  ticker      String
+  date        DateTime
+  rsi14       Float?
+  macd        Float?
+  macdSignal  Float?
+  macdHist    Float?
+  sma20       Float?
+  sma50       Float?
+  bollingerUpper Float?
+  bollingerLower Float?
+  @@unique([ticker, date])
+  @@index([ticker, date(sort: Desc)])
+}
