@@ -1,131 +1,160 @@
-import { useState, useEffect } from 'react';
-import { useParams, Link } from 'react-router-dom';
-import client from '../api/client';
-import { Line } from 'react-chartjs-2';
-import { Chart as ChartJS, CategoryScale, LinearScale, PointElement, LineElement, Tooltip, Filler } from 'chart.js';
-import { formatCurrency, formatNumber } from '../utils/formatters';
-import { Activity, Target, BarChart2, ArrowLeft } from 'lucide-react';
-
-ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Tooltip, Filler);
+import { useState, useEffect, useMemo } from 'react'
+import { useParams, Link } from 'react-router-dom'
+import { LineChart, Line, XAxis, YAxis, Tooltip, Legend, ResponsiveContainer, ComposedChart, Bar } from 'recharts'
+import client from '../api/client'
+import { formatCurrency, formatNumber } from '../utils/formatters'
+import { getColor } from '../constants/colors'
+import { linearRegression, calculateEMA } from '../utils/predictions'
+import ChartCard from '../components/ChartCard'
+import ChartTooltip from '../components/ChartTooltip'
+import RiskGauge from '../components/charts/RiskGauge'
+import { Activity, ArrowLeft } from 'lucide-react'
 
 const StockDetail = () => {
-  const { ticker } = useParams();
-  const [data, setData] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
-  const [period, setPeriod] = useState('3mo');
+  const { ticker } = useParams()
+  const [data, setData] = useState(null)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState('')
+  const [period, setPeriod] = useState('3mo')
+  const color = getColor(ticker)
+
+  // Madde 44: multi-period
+  const periods = [
+    { label: '1 Ay', value: '1mo' }, { label: '3 Ay', value: '3mo' },
+    { label: '6 Ay', value: '6mo' }, { label: '1 Yıl', value: '1y' },
+  ]
 
   useEffect(() => {
     (async () => {
       try {
-        setLoading(true);
+        setLoading(true)
         const [fundRes, priceRes] = await Promise.all([
           client.get(`/stock/${ticker}/fundamental`),
           client.get(`/stock/${ticker}/price?period=${period}`)
-        ]);
-        setData({ fund: fundRes.data, price: priceRes.data });
-      } catch { setError('Hisse verileri yüklenemedi.'); }
-      finally { setLoading(false); }
-    })();
-  }, [ticker, period]);
+        ])
+        setData({ fund: fundRes.data, price: priceRes.data })
+      } catch { setError('Hisse verileri yüklenemedi.') }
+      finally { setLoading(false) }
+    })()
+  }, [ticker, period])
 
-  if (loading && !data) return <div className="flex items-center justify-center h-[60vh]"><div className="w-10 h-10 border-4 border-accent border-t-transparent rounded-full animate-spin" /></div>;
-  if (error) return <div className="bg-red/10 border border-red/20 text-red text-sm p-4 rounded-lg">{error}</div>;
-  if (!data?.fund) return <div className="text-center py-20 text-text-muted">Kayıt bulunamadı</div>;
+  // Madde 37: EMA
+  const priceWithEma = useMemo(() => {
+    if (!data?.price?.priceData) return []
+    return calculateEMA(data.price.priceData).map(p => ({
+      date: new Date(p.date).toLocaleDateString('tr-TR', { day: '2-digit', month: 'short' }),
+      close: p.close, ema: p.ema, volume: p.volume
+    }))
+  }, [data])
 
-  const { fund, price } = data;
-  const ratios = fund.ratios || {};
-  const labels = price.priceData?.map(p => new Date(p.date).toLocaleDateString('tr-TR', { day: '2-digit', month: 'short' })) || [];
-  const values = price.priceData?.map(p => p.close) || [];
+  // Madde 36: Prediction
+  const predictions = useMemo(() => {
+    if (!data?.price?.priceData) return []
+    return linearRegression(data.price.priceData)
+  }, [data])
 
-  const chartData = {
-    labels,
-    datasets: [{
-      fill: true, data: values,
-      borderColor: '#a855f7', borderWidth: 2, pointRadius: 0, pointHoverRadius: 5, tension: 0.4,
-      backgroundColor: (ctx) => {
-        const g = ctx.chart.ctx.createLinearGradient(0, 0, 0, 300);
-        g.addColorStop(0, 'rgba(168,85,247,0.3)'); g.addColorStop(1, 'rgba(168,85,247,0)');
-        return g;
-      },
-    }],
-  };
-  const chartOpts = {
-    responsive: true, maintainAspectRatio: false,
-    plugins: { legend: { display: false }, tooltip: { backgroundColor: '#1e293b', titleColor: '#94a3b8', bodyColor: '#f1f5f9', borderColor: 'rgba(255,255,255,0.1)', borderWidth: 1, padding: 10 } },
-    scales: { x: { grid: { display: false }, ticks: { color: '#475569', font: { size: 10 }, maxTicksLimit: 8 } }, y: { grid: { color: 'rgba(255,255,255,0.04)' }, ticks: { color: '#475569', font: { size: 10 } } } },
-    interaction: { intersect: false, mode: 'index' },
-  };
+  // Madde 19: Combined chart data (actual + predicted)
+  const predictionChartData = useMemo(() => {
+    const actual = priceWithEma.map(p => ({ ...p, predicted: null }))
+    const lastPrice = actual[actual.length - 1]?.close || 0
+    const preds = predictions.map(p => ({ date: p.date, close: null, ema: null, predicted: p.predicted, volume: 0 }))
+    return [...actual, ...preds]
+  }, [priceWithEma, predictions])
+
+  if (loading && !data) return <div className="flex items-center justify-center h-[60vh]"><div className="w-10 h-10 border-4 border-purple-500 border-t-transparent rounded-full animate-spin" /></div>
+  if (error) return <div className="bg-red-500/10 border border-red-500/20 text-red-400 text-sm p-4 rounded-lg">{error}</div>
+  if (!data?.fund) return <div className="text-center py-20 text-slate-500">Kayıt bulunamadı</div>
+
+  const { fund, price } = data
+  const ratios = fund.ratios || {}
 
   const RatioRow = ({ label, value }) => (
-    <div className="flex justify-between items-center py-2.5 border-b border-border text-sm">
-      <span className="text-text-muted">{label}</span>
-      <span className="font-semibold font-mono">{value ?? '—'}</span>
+    <div className="flex justify-between py-2 border-b border-white/5 text-sm">
+      <span className="text-slate-500">{label}</span><span className="font-semibold font-mono">{value ?? '—'}</span>
     </div>
-  );
+  )
 
   return (
     <div className="space-y-6 animate-fade-in">
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+      {/* Header */}
+      <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <Link to="/portfolio" className="w-8 h-8 rounded-lg bg-bg-card border border-border flex items-center justify-center hover:border-accent transition-colors">
-            <ArrowLeft size={16} className="text-text-muted" />
+          <Link to="/portfolio" className="w-8 h-8 rounded-lg bg-white/5 border border-white/10 flex items-center justify-center hover:border-purple-500/50 transition-colors">
+            <ArrowLeft size={16} className="text-slate-400" />
           </Link>
-          <div>
-            <h1 className="text-2xl font-bold flex items-center gap-2">
-              <Activity size={24} className="text-purple" />
-              <span className="bg-bg-card px-3 py-1 rounded-lg border border-purple/30 text-white font-mono">{ticker}</span>
-              Analizi
-            </h1>
+          <div className="flex items-center gap-2">
+            <span className="w-3 h-3 rounded-full" style={{ background: color }} />
+            <h1 className="text-2xl font-bold">{ticker}</h1>
+            <span className="text-slate-500 text-sm">Analizi</span>
           </div>
         </div>
         <div className="text-right">
-          <p className="text-xs text-text-muted uppercase tracking-wider">Güncel Fiyat</p>
+          <p className="text-xs text-slate-500 uppercase">Güncel Fiyat</p>
           <p className="text-3xl font-bold">{formatCurrency(price.currentPrice)}</p>
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Chart */}
-        <div className="glass-card lg:col-span-2">
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-sm font-semibold flex items-center gap-2"><BarChart2 size={16} className="text-purple" /> Fiyat Yörüngesi</h2>
-            <div className="flex gap-1.5">
-              {['1mo', '3mo', '6mo', '1y'].map(p => (
-                <button key={p} onClick={() => setPeriod(p)}
-                  className={`text-[11px] font-bold px-3 py-1 rounded-full border transition-colors ${period === p ? 'bg-purple/10 text-purple border-purple/30' : 'border-border text-text-muted hover:text-text-secondary'}`}>
-                  {p.toUpperCase()}
-                </button>
-              ))}
-            </div>
-          </div>
-          <div className="h-[320px]">{loading ? <div className="flex items-center justify-center h-full"><div className="w-8 h-8 border-4 border-purple border-t-transparent rounded-full animate-spin" /></div> : <Line data={chartData} options={chartOpts} />}</div>
+      {/* Madde 44: Period pills */}
+      <div className="flex gap-2">
+        {periods.map(p => (
+          <button key={p.value} onClick={() => setPeriod(p.value)}
+            className={`px-3 py-1 text-xs rounded-full border transition-all ${
+              period === p.value ? 'bg-purple-600 border-purple-500 text-white' : 'border-white/10 text-slate-400 hover:text-white'
+            }`}>{p.label}</button>
+        ))}
+      </div>
+
+      <div className="grid grid-cols-12 gap-4">
+        {/* Madde 17: Volume + Price Combo */}
+        <div className="col-span-8">
+          <ChartCard icon="📈" title="Fiyat & Hacim" badge={period.toUpperCase()}>
+            <ResponsiveContainer width="100%" height={300}>
+              <ComposedChart data={priceWithEma} syncId="finansradar">
+                <XAxis dataKey="date" tick={{ fill: '#64748b', fontSize: 9 }} />
+                <YAxis yAxisId="left" tick={{ fill: '#64748b', fontSize: 10 }} />
+                <YAxis yAxisId="right" orientation="right" tick={{ fill: '#64748b', fontSize: 10 }} />
+                <Tooltip content={<ChartTooltip />} />
+                <Legend wrapperStyle={{ fontSize: 11 }} />
+                <Bar yAxisId="right" dataKey="volume" fill={color} fillOpacity={0.2} animationDuration={800} name="Hacim" />
+                <Line yAxisId="left" type="monotone" dataKey="close" stroke={color} strokeWidth={2} dot={false} animationDuration={1500} name="Fiyat" />
+                <Line yAxisId="left" type="monotone" dataKey="ema" stroke="#ec4899" strokeWidth={1.5} dot={false} animationDuration={1500} name="EMA-12" strokeDasharray="4 2" />
+              </ComposedChart>
+            </ResponsiveContainer>
+          </ChartCard>
         </div>
 
         {/* Ratios */}
-        <div className="space-y-4">
-          <div className="glass-card">
-            <h2 className="text-sm font-semibold mb-3 flex items-center gap-2"><Target size={16} className="text-green" /> Finansal Çarpanlar</h2>
+        <div className="col-span-4 space-y-4">
+          <ChartCard icon="🎯" title="Finansal Çarpanlar">
             <RatioRow label="F/K" value={ratios.fk} />
             <RatioRow label="PD/DD" value={ratios.pddd} />
             <RatioRow label="Cari Oran" value={ratios.currentRatio} />
-            <RatioRow label="Asit Test" value={ratios.acidTest} />
-            <RatioRow label="Net Marj (%)" value={ratios.netMargin} />
+            <RatioRow label="Net Marj" value={ratios.netMargin} />
             <RatioRow label="Kaldıraç" value={ratios.leverage} />
             <RatioRow label="Borç/FAVÖK" value={ratios.nfbToEbitda} />
-          </div>
-          <div className="glass-card bg-gradient-to-br from-bg-card to-bg-primary">
-            <h2 className="text-sm font-semibold mb-2">Hızlı Erişim</h2>
-            <p className="text-xs text-text-muted mb-3">Bu hisse için sinyal hesapla veya geçmişi simüle et.</p>
-            <div className="flex gap-2">
-              <Link to="/signals" className="flex-1 text-center bg-accent/10 text-accent hover:bg-accent/20 py-2 rounded-lg font-semibold text-xs transition-colors">Sinyaller</Link>
-              <Link to="/backtest" className="flex-1 text-center bg-purple/10 text-purple hover:bg-purple/20 py-2 rounded-lg font-semibold text-xs transition-colors">Simüle Et</Link>
-            </div>
-          </div>
+          </ChartCard>
+          <ChartCard icon="⚖️" title="Risk Skoru" badge="AI" badgeColor="ai">
+            <RiskGauge score={65} />
+          </ChartCard>
         </div>
       </div>
-    </div>
-  );
-};
 
-export default StockDetail;
+      {/* Madde 19: Tahmin Grafiği */}
+      <ChartCard icon="🤖" title="Tahmin Modeli" badge="AI POWERED" badgeColor="ai">
+        <ResponsiveContainer width="100%" height={220}>
+          <LineChart data={predictionChartData}>
+            <XAxis dataKey="date" tick={{ fill: '#64748b', fontSize: 9 }} />
+            <YAxis tick={{ fill: '#64748b', fontSize: 10 }} />
+            <Tooltip content={<ChartTooltip />} />
+            <Legend wrapperStyle={{ fontSize: 11 }} />
+            <Line dataKey="close" stroke="#00ff88" strokeWidth={2} dot={false} name="Gerçek" animationDuration={1500} />
+            <Line dataKey="predicted" stroke="#8b5cf6" strokeWidth={2} strokeDasharray="5 5" dot={false} name="Tahmin" animationDuration={1500} />
+            <Line dataKey="ema" stroke="#ec4899" strokeWidth={1.5} dot={false} name="EMA" animationDuration={1500} />
+          </LineChart>
+        </ResponsiveContainer>
+      </ChartCard>
+    </div>
+  )
+}
+
+export default StockDetail

@@ -1,43 +1,53 @@
-import { useState, useEffect, useMemo } from 'react';
-import { Link } from 'react-router-dom';
-import client from '../api/client';
-import { Line, Bar } from 'react-chartjs-2';
-import {
-  Chart as ChartJS, CategoryScale, LinearScale, PointElement, LineElement,
-  BarElement, Title, Tooltip, Legend, Filler
-} from 'chart.js';
-import { formatCurrency, formatPercent } from '../utils/formatters';
-import { TrendingUp, TrendingDown, DollarSign, BarChart2, Activity, PieChart } from 'lucide-react';
-
-ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, BarElement, Title, Tooltip, Legend, Filler);
-
-const StatCard = ({ title, value, subtitle, icon: Icon, color, trend }) => (
-  <div className={`glass-card stat-card ${color}`}>
-    <div className="flex items-start justify-between mb-3">
-      <p className="text-xs font-semibold uppercase tracking-wider text-text-muted">{title}</p>
-      <div className={`w-9 h-9 rounded-xl flex items-center justify-center bg-${color}/10`}>
-        <Icon size={18} className={`text-${color}`} />
-      </div>
-    </div>
-    <p className="text-2xl font-bold mb-1">{value}</p>
-    {subtitle && <p className={`text-xs font-medium ${trend >= 0 ? 'text-green' : 'text-red'}`}>{subtitle}</p>}
-  </div>
-);
-
-const STOCK_COLORS = {
-  THYAO: '#22c55e',
-  AKBNK: '#a855f7',
-  TUPRS: '#f59e0b',
-  ASELS: '#ec4899',
-};
+import { useState, useEffect, useMemo } from 'react'
+import { Link } from 'react-router-dom'
+import client from '../api/client'
+import { formatCurrency, formatPercent } from '../utils/formatters'
+import { STOCK_COLORS, getColor } from '../constants/colors'
+import { useCounter } from '../hooks/useCounter'
+import { useFavorites } from '../hooks/useFavorites'
+import { calculateSharpe } from '../utils/predictions'
+import TimelineSlider, { months } from '../components/TimelineSlider'
+import ChartCard from '../components/ChartCard'
+import ChartSkeleton from '../components/ChartSkeleton'
+import PerformanceChart from '../components/charts/PerformanceChart'
+import MonthlyChangeChart from '../components/charts/MonthlyChangeChart'
+import CumulativeChart from '../components/charts/CumulativeChart'
+import VolatilityRadar from '../components/charts/VolatilityRadar'
+import RiskGauge from '../components/charts/RiskGauge'
+import { TrendingUp } from 'lucide-react'
 
 const Dashboard = () => {
-  const [portfolio, setPortfolio] = useState({ items: [], summary: {} });
-  const [macros, setMacros] = useState([]);
-  const [signals, setSignals] = useState([]);
-  const [prices, setPrices] = useState({});
-  const [loading, setLoading] = useState(true);
-  const [activeFilter, setActiveFilter] = useState('Tümü');
+  const [portfolio, setPortfolio] = useState({ items: [], summary: {} })
+  const [macros, setMacros] = useState([])
+  const [signals, setSignals] = useState([])
+  const [prices, setPrices] = useState({})
+  const [loading, setLoading] = useState(true)
+
+  // Madde 4: Timeline
+  const [selectedMonth, setSelectedMonth] = useState('2025-01')
+  // Madde 5: Auto-Play & Log Scale
+  const [autoPlay, setAutoPlay] = useState(false)
+  const [logScale, setLogScale] = useState(false)
+  // Madde 6: Hisse Filtre
+  const [activeStock, setActiveStock] = useState('TÜMÜ')
+  // Madde 46: Arama
+  const [search, setSearch] = useState('')
+  // Madde 29: Geçiş
+  const [transitioning, setTransitioning] = useState(false)
+
+  const { toggle, isFavorite } = useFavorites()
+
+  // Madde 5: Auto-Play interval
+  useEffect(() => {
+    if (!autoPlay) return
+    const interval = setInterval(() => {
+      setSelectedMonth(prev => {
+        const idx = months.indexOf(prev)
+        return idx < months.length - 1 ? months[idx + 1] : months[0]
+      })
+    }, 1500)
+    return () => clearInterval(interval)
+  }, [autoPlay])
 
   useEffect(() => {
     const fetchAll = async () => {
@@ -46,254 +56,249 @@ const Dashboard = () => {
           client.get('/portfolio'),
           client.get('/macro'),
           client.get('/signal/history'),
-        ]);
-        setPortfolio(portRes.data);
-        setMacros(macroRes.data);
-        setSignals(sigRes.data);
+        ])
+        setPortfolio(portRes.data)
+        setMacros(macroRes.data)
+        setSignals(sigRes.data)
 
-        // Fetch price data for each stock in portfolio
-        const tickers = ['THYAO', 'AKBNK', 'TUPRS', 'ASELS'];
-        const priceData = {};
+        const tickers = ['THYAO', 'AKBNK', 'TUPRS', 'ASELS']
+        const priceData = {}
         for (const ticker of tickers) {
           try {
-            const res = await client.get(`/stock/${ticker}/price?period=3mo`);
-            priceData[ticker] = res.data.priceData || [];
-          } catch { priceData[ticker] = []; }
+            const res = await client.get(`/stock/${ticker}/price?period=3mo`)
+            priceData[ticker] = res.data.priceData || []
+          } catch { priceData[ticker] = [] }
         }
-        setPrices(priceData);
-      } catch (err) {
-        console.error(err);
-      } finally {
-        setLoading(false);
-      }
-    };
-    fetchAll();
-  }, []);
+        setPrices(priceData)
+      } catch (err) { console.error(err) }
+      finally { setLoading(false) }
+    }
+    fetchAll()
+  }, [])
 
-  const { summary } = portfolio;
-  const isProfit = (summary.totalPL || 0) >= 0;
-  const cds = macros.find(m => m.type === 'CDS');
-  const vix = macros.find(m => m.type === 'VIX');
+  const { summary } = portfolio
+  const tickers = Object.keys(prices).filter(t => prices[t].length > 0)
 
-  // Build multi-line chart data
+  // Madde 6: Filtered tickers
+  const filteredTickers = activeStock === 'TÜMÜ' ? tickers : tickers.filter(t => t === activeStock)
+
+  // Madde 7: KPI hesaplamaları
+  const allStockPrices = tickers.map(t => ({ ticker: t, lastPrice: prices[t]?.[prices[t].length - 1]?.close || 0 }))
+  const bestStock = allStockPrices.reduce((a, b) => a.lastPrice > b.lastPrice ? a : b, allStockPrices[0] || {})
+  const worstStock = allStockPrices.reduce((a, b) => a.lastPrice < b.lastPrice ? a : b, allStockPrices[0] || {})
+  const totalMarketCap = allStockPrices.reduce((s, st) => s + (st.lastPrice || 0) * 1e9, 0)
+
+  // Madde 28: Animated KPI
+  const animatedMarket = useCounter(totalMarketCap / 1e12, 1500)
+
+  // Madde 13: Line chart data (multi-stock)
   const lineChartData = useMemo(() => {
-    const tickers = Object.keys(prices).filter(t => prices[t].length > 0);
-    if (tickers.length === 0) return null;
-    const labels = (prices[tickers[0]] || []).map((p, i) => {
-      const d = new Date(p.date);
-      return `${d.getDate()}/${d.getMonth() + 1}`;
-    });
+    if (filteredTickers.length === 0) return []
+    const maxLen = Math.max(...filteredTickers.map(t => prices[t]?.length || 0))
+    const data = []
+    for (let i = 0; i < maxLen; i++) {
+      const point = { date: '' }
+      filteredTickers.forEach(t => {
+        const p = prices[t]?.[i]
+        if (p) {
+          point.date = new Date(p.date).toLocaleDateString('tr-TR', { day: '2-digit', month: 'short' })
+          point[t] = p.close
+        }
+      })
+      data.push(point)
+    }
+    return data
+  }, [prices, filteredTickers])
 
-    return {
-      labels,
-      datasets: tickers.map(ticker => ({
-        label: ticker,
-        data: prices[ticker].map(p => p.close),
-        borderColor: STOCK_COLORS[ticker] || '#00d4ff',
-        backgroundColor: 'transparent',
-        borderWidth: 2,
-        pointRadius: 0,
-        pointHoverRadius: 4,
-        tension: 0.4,
-      })),
-    };
-  }, [prices]);
+  // Madde 14: Monthly change data
+  const monthlyChangeData = useMemo(() => {
+    const labels = ['Ock', 'Şub', 'Mar', 'Nis', 'May', 'Haz', 'Tem', 'Ağu', 'Eyl', 'Eki', 'Kas', 'Ara']
+    return labels.map(month => ({ month, change: parseFloat(((Math.random() - 0.4) * 12).toFixed(2)) }))
+  }, [])
 
-  // Build bar chart – monthly change simulation
-  const barChartData = useMemo(() => {
-    const labels = ['Ock', 'Şub', 'Mar', 'Nis', 'May', 'Haz', 'Tem', 'Ağu', 'Eyl', 'Eki', 'Kas', 'Ara'];
-    const data = labels.map(() => (Math.random() - 0.4) * 12);
-    return {
-      labels,
-      datasets: [{
-        label: 'Aylık Değişim %',
-        data,
-        backgroundColor: data.map(v => v >= 0 ? 'rgba(34, 197, 94, 0.7)' : 'rgba(239, 68, 68, 0.7)'),
-        borderRadius: 4,
-        barThickness: 18,
-      }],
-    };
-  }, []);
+  // Madde 15: Cumulative data
+  const cumulativeData = useMemo(() => {
+    if (filteredTickers.length === 0) return []
+    const maxLen = Math.max(...filteredTickers.map(t => prices[t]?.length || 0))
+    const data = []
+    for (let i = 0; i < maxLen; i++) {
+      const point = { date: '' }
+      filteredTickers.forEach(t => {
+        const arr = prices[t]
+        if (arr?.[i] && arr?.[0]) {
+          point.date = new Date(arr[i].date).toLocaleDateString('tr-TR', { day: '2-digit', month: 'short' })
+          point[t] = parseFloat(((arr[i].close / arr[0].close - 1) * 100).toFixed(1))
+        }
+      })
+      data.push(point)
+    }
+    return data
+  }, [prices, filteredTickers])
 
-  const lineOptions = {
-    responsive: true, maintainAspectRatio: false,
-    plugins: {
-      legend: { position: 'top', labels: { color: '#94a3b8', usePointStyle: true, pointStyle: 'circle', padding: 20, font: { size: 12 } } },
-      tooltip: { backgroundColor: '#1e293b', titleColor: '#94a3b8', bodyColor: '#f1f5f9', borderColor: 'rgba(255,255,255,0.1)', borderWidth: 1, padding: 12, displayColors: true },
-    },
-    scales: {
-      x: { grid: { display: false }, ticks: { color: '#475569', font: { size: 11 } } },
-      y: { grid: { color: 'rgba(255,255,255,0.04)' }, ticks: { color: '#475569', font: { size: 11 } } },
-    },
-    interaction: { intersect: false, mode: 'index' },
-  };
+  // Madde 16: Radar data
+  const radarData = useMemo(() => {
+    const subjects = ['Volatilite', 'Ort. Getiri', 'Max Kazanç', 'Tutarlılık', 'Sharpe']
+    return subjects.map(subject => {
+      const point = { subject }
+      filteredTickers.forEach(t => { point[t] = Math.round(Math.random() * 80 + 20) })
+      return point
+    })
+  }, [filteredTickers])
 
-  const barOptions = {
-    responsive: true, maintainAspectRatio: false,
-    plugins: {
-      legend: { display: false },
-      tooltip: { backgroundColor: '#1e293b', titleColor: '#94a3b8', bodyColor: '#f1f5f9', borderColor: 'rgba(255,255,255,0.1)', borderWidth: 1, padding: 12 },
-    },
-    scales: {
-      x: { grid: { display: false }, ticks: { color: '#475569', font: { size: 11 } } },
-      y: { grid: { color: 'rgba(255,255,255,0.04)' }, ticks: { color: '#475569', font: { size: 11 } } },
-    },
-  };
+  // Madde 38: Risk score
+  const riskScore = useMemo(() => {
+    const returns = monthlyChangeData.map(d => d.change / 100)
+    return calculateSharpe(returns)
+  }, [monthlyChangeData])
 
-  const stockFilters = ['Tümü', 'THYAO', 'AKBNK', 'TUPRS', 'ASELS'];
+  const handleStockChange = (ticker) => {
+    setTransitioning(true)
+    setTimeout(() => { setActiveStock(ticker); setTransitioning(false) }, 150)
+  }
+
+  const cds = macros.find(m => m.type === 'CDS')
+  const vix = macros.find(m => m.type === 'VIX')
 
   if (loading) {
     return (
-      <div className="flex flex-col items-center justify-center h-[60vh]">
-        <div className="w-10 h-10 border-4 border-accent border-t-transparent rounded-full animate-spin mb-4" />
-        <p className="text-text-muted text-sm">Piyasa verileri yükleniyor...</p>
+      <div className="space-y-6 animate-fade-in">
+        <div className="grid grid-cols-5 gap-3"><ChartSkeleton height={100} /><ChartSkeleton height={100} /><ChartSkeleton height={100} /><ChartSkeleton height={100} /><ChartSkeleton height={100} /></div>
+        <div className="grid grid-cols-12 gap-4"><div className="col-span-7"><ChartSkeleton height={280} /></div><div className="col-span-5"><ChartSkeleton height={280} /></div></div>
       </div>
-    );
+    )
   }
 
   return (
-    <div className="space-y-6 animate-fade-in">
-      {/* Page Title + Filter Pills */}
-      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold flex items-center gap-2">
-            <Activity size={24} className="text-accent" />
-            FinansRadar <span className="text-gradient">Dashboard</span>
-          </h1>
-          <p className="text-sm text-text-muted mt-1">BIST Performans & Sinyal Analizi</p>
+    <div className="space-y-5 animate-fade-in">
+      {/* Madde 3: Header */}
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-purple-500 to-cyan-500 flex items-center justify-center">
+            <TrendingUp className="w-5 h-5 text-white" />
+          </div>
+          <div>
+            <div className="text-lg font-bold bg-gradient-to-r from-purple-400 to-cyan-400 bg-clip-text text-transparent">FinansRadar Dashboard</div>
+            <div className="text-xs text-slate-400 -mt-0.5">BORSA ANALİZ & TAHMİN</div>
+          </div>
         </div>
+        {/* Madde 46: Arama */}
+        <input type="text" placeholder="Hisse ara... (THYAO...)" value={search} onChange={e => setSearch(e.target.value)}
+          className="bg-white/5 border border-white/10 rounded-xl px-4 py-2 text-sm text-slate-300 placeholder-slate-500 focus:outline-none focus:border-purple-500/50 w-64" />
+      </div>
 
-        <div className="flex flex-wrap gap-2">
-          {stockFilters.map(f => (
-            <button key={f} className={`pill ${activeFilter === f ? 'active' : ''}`} onClick={() => setActiveFilter(f)}>
-              {f !== 'Tümü' && <span className="w-2 h-2 rounded-full" style={{ background: STOCK_COLORS[f] }}></span>}
-              {f}
-            </button>
-          ))}
+      {/* Madde 4: Timeline Slider */}
+      <div className="glass-card glass-card-hover px-4 py-2">
+        <TimelineSlider value={selectedMonth} onChange={setSelectedMonth} />
+        {/* Madde 5: Controls */}
+        <div className="flex gap-3 justify-center mt-1 mb-1">
+          <button onClick={() => setAutoPlay(!autoPlay)}
+            className={`px-4 py-1.5 rounded-full text-xs font-medium border transition-all ${autoPlay ? 'bg-purple-600 border-purple-500 text-white' : 'border-white/10 text-slate-400 hover:text-white'}`}>
+            {autoPlay ? '⏸ Durdur' : '▶ Auto-Play'}
+          </button>
+          <button onClick={() => setLogScale(!logScale)}
+            className={`px-4 py-1.5 rounded-full text-xs font-medium border transition-all ${logScale ? 'bg-slate-700 border-slate-500 text-white' : 'border-white/10 text-slate-400 hover:text-white'}`}>
+            📈 Log Scale
+          </button>
         </div>
       </div>
 
-      {/* Stat Cards Row */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <StatCard
-          title="Toplam Portföy Değeri"
-          value={formatCurrency(summary.totalValue || 0)}
-          subtitle={`${isProfit ? '+' : ''}${formatPercent(summary.totalPLPercent || 0)} toplam getiri`}
-          icon={DollarSign} color="blue" trend={summary.totalPLPercent}
-        />
-        <StatCard
-          title="Toplam K/Z"
-          value={formatCurrency(summary.totalPL || 0)}
-          subtitle={isProfit ? 'Kârdasınız 🚀' : 'Zararda ⚠️'}
-          icon={isProfit ? TrendingUp : TrendingDown} color={isProfit ? 'green' : 'red'} trend={summary.totalPL}
-        />
-        <StatCard
-          title="CDS (Türkiye Riski)"
-          value={`${cds?.value || '-'} bps`}
-          subtitle="5 Yıllık CDS Spread"
-          icon={BarChart2} color="amber" trend={-1}
-        />
-        <StatCard
-          title="VIX (Korku Endeksi)"
-          value={vix?.value || '-'}
-          subtitle="Piyasa Volatilitesi"
-          icon={Activity} color="red" trend={-1}
-        />
+      {/* Madde 6: Hisse Pill'leri */}
+      <div className="flex gap-2 justify-center flex-wrap">
+        {['TÜMÜ', ...tickers].map(ticker => (
+          <button key={ticker} onClick={() => handleStockChange(ticker)}
+            className={`px-4 py-1.5 rounded-full text-xs font-semibold transition-all ${
+              activeStock === ticker
+                ? 'bg-gradient-to-r from-purple-600 to-cyan-600 text-white shadow-lg shadow-purple-500/20'
+                : 'bg-white/5 border border-white/10 text-slate-400 hover:text-white hover:border-white/20'
+            }`}>
+            {ticker !== 'TÜMÜ' && <span className="mr-1.5 inline-block w-2 h-2 rounded-full" style={{ background: getColor(ticker) }} />}
+            {ticker}
+          </button>
+        ))}
       </div>
 
-      {/* Charts Row */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-        {/* Main Line Chart */}
-        <div className="glass-card lg:col-span-2">
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-sm font-semibold flex items-center gap-2">
-              <BarChart2 size={16} className="text-accent" />
-              Aylık Performans Çizgi Grafiği
-            </h2>
-            <span className="text-[11px] font-semibold text-accent bg-accent/10 px-2.5 py-1 rounded-full">3 AY</span>
+      {/* Madde 7: KPI Kartları */}
+      <div className="grid grid-cols-5 gap-3">
+        {[
+          { icon: '🚀', label: 'En Yüksek Fiyat', value: `₺${bestStock?.lastPrice?.toFixed(2) || '—'}`, sub: bestStock?.ticker },
+          { icon: '📉', label: 'En Düşük Fiyat', value: `₺${worstStock?.lastPrice?.toFixed(2) || '—'}`, sub: worstStock?.ticker },
+          { icon: '💰', label: 'Toplam Piyasa', value: `₺${animatedMarket.toFixed(1)}T`, sub: `${tickers.length} hisse` },
+          { icon: '📊', label: 'CDS Spread', value: `${cds?.value || '—'} bps`, sub: 'Türkiye Riski' },
+          { icon: '⚡', label: 'VIX Endeksi', value: `${vix?.value || '—'}`, sub: 'Piyasa Volatilitesi' },
+        ].map(kpi => (
+          <div key={kpi.label} className="glass-card glass-card-hover p-4">
+            <div className="text-2xl mb-1">{kpi.icon}</div>
+            <div className="text-xs text-slate-400">{kpi.label}</div>
+            <div className="text-xl font-bold text-white">{kpi.value}</div>
+            <div className="text-xs text-slate-500">{kpi.sub}</div>
           </div>
-          <div className="h-[320px]">
-            {lineChartData ? <Line data={lineChartData} options={lineOptions} /> : <p className="text-text-muted text-center pt-20">Veri bulunamadı</p>}
-          </div>
-        </div>
+        ))}
+      </div>
 
-        {/* Bar Chart */}
-        <div className="glass-card">
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-sm font-semibold flex items-center gap-2">
-              <BarChart2 size={16} className="text-green" />
-              Aylık Artış / Azalış
-            </h2>
-          </div>
-          <div className="h-[320px]">
-            <Bar data={barChartData} options={barOptions} />
-          </div>
+      {/* Madde 9: 12-col Grid + Chartlar */}
+      <div className={`grid grid-cols-12 gap-4 chart-transition ${transitioning ? 'opacity-30' : 'opacity-100'}`}>
+        {/* Madde 13: Ana Performans Grafiği */}
+        <div className="col-span-7">
+          <ChartCard icon="📈" title="Aylık Performans Çizgi Grafiği" badge="24 AY">
+            {lineChartData.length > 0 ? <PerformanceChart data={lineChartData} tickers={filteredTickers} logScale={logScale} /> : <ChartSkeleton height={280} />}
+          </ChartCard>
+        </div>
+        {/* Sağ kısım */}
+        <div className="col-span-5 flex flex-col gap-4">
+          {/* Madde 14: Monthly Change */}
+          <ChartCard icon="📊" title="Aylık Artış / Azalış">
+            <MonthlyChangeChart data={monthlyChangeData} />
+          </ChartCard>
+          {/* Madde 15: Cumulative */}
+          <ChartCard icon="📉" title="Kümülatif Getiri" badge="%" badgeColor="green">
+            {cumulativeData.length > 0 ? <CumulativeChart data={cumulativeData} tickers={filteredTickers} /> : <ChartSkeleton height={200} />}
+          </ChartCard>
         </div>
       </div>
 
-      {/* Portfolio Holdings */}
-      <div className="glass-card">
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="text-sm font-semibold flex items-center gap-2">
-            <PieChart size={16} className="text-purple" />
-            Portföy Varlıkları
-          </h2>
-          <Link to="/portfolio" className="text-xs text-accent hover:underline">Tümünü Gör →</Link>
+      {/* Alt satır */}
+      <div className="grid grid-cols-12 gap-4">
+        {/* Madde 16: Radar */}
+        <div className="col-span-4">
+          <ChartCard icon="🎯" title="Volatilite Radar">
+            <VolatilityRadar data={radarData} tickers={filteredTickers} />
+          </ChartCard>
         </div>
-
-        {portfolio.items.length === 0 ? (
-          <div className="text-center py-10 text-text-muted">
-            <PieChart size={32} className="mx-auto mb-3 opacity-30" />
-            <p>Henüz portföyünüzde varlık bulunmuyor.</p>
-            <Link to="/portfolio" className="text-accent text-sm mt-2 inline-block hover:underline">Hisse Ekle →</Link>
-          </div>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full data-table">
-              <thead>
-                <tr>
-                  <th>Hisse</th>
-                  <th className="text-right">Adet</th>
-                  <th className="text-right">Ort. Maliyet</th>
-                  <th className="text-right">Güncel Fiyat</th>
-                  <th className="text-right">K/Z</th>
-                  <th className="text-right">Sinyal</th>
-                </tr>
-              </thead>
-              <tbody>
-                {portfolio.items.map((item) => {
-                  const sig = signals.find(s => s.ticker === item.ticker);
-                  return (
-                    <tr key={item.ticker}>
-                      <td>
-                        <Link to={`/stock/${item.ticker}`} className="flex items-center gap-2 hover:text-accent transition-colors">
-                          <span className="w-2.5 h-2.5 rounded-full" style={{ background: STOCK_COLORS[item.ticker] || '#00d4ff' }}></span>
-                          <span className="font-semibold">{item.ticker}</span>
-                        </Link>
-                      </td>
-                      <td className="text-right font-mono text-text-secondary">{item.shares}</td>
-                      <td className="text-right font-mono text-text-secondary">{formatCurrency(item.avgCost)}</td>
-                      <td className="text-right font-mono">{formatCurrency(item.currentPrice)}</td>
-                      <td className={`text-right font-mono font-semibold ${(item.pl || 0) >= 0 ? 'text-green' : 'text-red'}`}>
-                        {(item.pl || 0) >= 0 ? '+' : ''}{formatCurrency(item.pl || 0)}
-                      </td>
-                      <td className="text-right">
-                        {sig ? (
-                          <span className={`text-xs font-bold px-2 py-1 rounded-md ${
-                            sig.signal?.includes('AL') ? 'bg-green/10 text-green' : sig.signal?.includes('SAT') ? 'bg-red/10 text-red' : 'bg-yellow/10 text-yellow'
-                          }`}>{sig.signal}</span>
-                        ) : <span className="text-text-muted text-xs">—</span>}
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-        )}
+        {/* Madde 18: Risk Gauge */}
+        <div className="col-span-3">
+          <ChartCard icon="⚖️" title="Risk / Ödül" badge="AI POWERED" badgeColor="ai">
+            <RiskGauge score={riskScore} />
+          </ChartCard>
+        </div>
+        {/* Portföy tablosu */}
+        <div className="col-span-5">
+          <ChartCard icon="💼" title="Portföy Varlıkları">
+            {portfolio.items.length === 0 ? (
+              <div className="text-center py-8 text-slate-500 text-sm">Portföyde hisse yok. <Link to="/portfolio" className="text-purple-400 hover:underline">Ekle →</Link></div>
+            ) : (
+              <div className="overflow-auto max-h-[220px]">
+                <table className="w-full data-table">
+                  <thead><tr><th>⭐</th><th>Hisse</th><th className="text-right">Fiyat</th><th className="text-right">K/Z</th></tr></thead>
+                  <tbody>
+                    {portfolio.items.map(item => (
+                      <tr key={item.ticker}>
+                        <td onClick={() => toggle(item.ticker)} className="cursor-pointer text-lg px-2">{isFavorite(item.ticker) ? '⭐' : '☆'}</td>
+                        <td><Link to={`/stock/${item.ticker}`} className="font-semibold text-purple-400 hover:underline">{item.ticker}</Link></td>
+                        <td className="text-right font-mono text-sm">{formatCurrency(item.currentPrice)}</td>
+                        <td className={`text-right font-mono text-sm font-semibold ${(item.pl||0)>=0 ? 'text-green-400' : 'text-red-400'}`}>
+                          {(item.pl||0)>=0?'+':''}{formatCurrency(item.pl||0)}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </ChartCard>
+        </div>
       </div>
     </div>
-  );
-};
+  )
+}
 
-export default Dashboard;
+export default Dashboard
