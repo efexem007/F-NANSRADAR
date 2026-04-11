@@ -95,8 +95,22 @@ export async function scanSingleStock(ticker) {
     else if (finalScore >= 25) finalSignal = 'SAT';
     else finalSignal = 'GÜÇLÜ SAT';
 
+    const detailsObj = { 
+      techScore: Math.round(techScore), 
+      fundScore: Math.round(fundScore), 
+      macroScoreVal: Math.round(macroScoreVal), 
+      haberPuan: Math.round(haberPuan), 
+      riskScore: Math.round(riskScore) 
+    };
+
     await prisma.signalHistory.create({
-      data: { ticker, signal: finalSignal, score: Math.round(finalScore), price: priceData.currentPrice || 0 }
+      data: { 
+        ticker, 
+        signal: finalSignal, 
+        score: Math.round(finalScore), 
+        price: priceData.currentPrice || 0,
+        details: JSON.stringify(detailsObj)
+      }
     });
 
     await prisma.stock.update({
@@ -104,7 +118,13 @@ export async function scanSingleStock(ticker) {
       data: { lastPrice: priceData.currentPrice, lastUpdate: new Date() }
     });
 
-    return { ticker, signal: finalSignal, score: Math.round(finalScore), price: priceData.currentPrice };
+    return { 
+      ticker, 
+      signal: finalSignal, 
+      score: Math.round(finalScore), 
+      price: priceData.currentPrice,
+      details: detailsObj
+    };
   } catch (error) {
     console.error(`Scan hatası ${ticker}:`, error.message);
     return { ticker, error: error.message };

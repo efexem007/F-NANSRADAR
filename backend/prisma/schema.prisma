@@ -107,6 +107,7 @@ model SignalHistory {
   signal      String
   score       Int
   price       Float
+  details     String?  // JSON string formatında alt skorlar (Teknik, Temel vb.)
   createdAt   DateTime @default(now())
   @@index([ticker, createdAt])
 }

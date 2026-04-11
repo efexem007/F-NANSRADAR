@@ -8,6 +8,7 @@ export default function Scanner() {
   const [scanning, setScanning] = useState(false);
   const [ticker, setTicker] = useState('');
   const [results, setResults] = useState([]);
+  const [detailModal, setDetailModal] = useState(null);
 
   useEffect(() => {
     fetchResults();
@@ -137,7 +138,7 @@ export default function Scanner() {
                     </tr>
                   ) : (
                     results.map(r => (
-                      <tr key={r.id}>
+                      <tr key={r.id} onClick={() => setDetailModal(r)} className="cursor-pointer hover:bg-white/5 transition-colors">
                         <td className="font-bold text-slate-200">{r.ticker}</td>
                         <td className={`font-semibold 
                           ${r.signal.includes('GÜÇLÜ AL') ? 'text-emerald-400' : 
@@ -165,6 +166,52 @@ export default function Scanner() {
           </ChartCard>
         </div>
       </div>
+
+      {/* Algoritma Detay Modalı */}
+      {detailModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-fade-in">
+          <div className="glass-card w-full max-w-md p-6 relative">
+            <button onClick={() => setDetailModal(null)} className="absolute top-4 right-4 text-slate-400 hover:text-white transition-colors">✕</button>
+            <h2 className="text-xl font-bold bg-gradient-to-r from-purple-400 to-cyan-400 bg-clip-text text-transparent mb-1">{detailModal.ticker} Algoritma Röntkeni</h2>
+            <div className={`text-sm font-semibold mb-5 
+              ${detailModal.signal.includes('GÜÇLÜ AL') ? 'text-emerald-400' : 
+                detailModal.signal.includes('AL') ? 'text-green-400' : 
+                detailModal.signal.includes('SAT') ? 'text-red-400' : 
+                'text-amber-400'}`}>
+              Nihai Karar: {detailModal.signal} (Toplam Skor: {detailModal.score})
+            </div>
+            
+            <div className="space-y-4">
+              {(() => {
+                let d = null;
+                try { d = JSON.parse(detailModal.details); } catch(e) {}
+                if (!d) return <div className="text-slate-400 text-sm italic border border-white/10 p-3 rounded-lg">Bu sinyal için geçmiş metrik detayı bulunmuyor.</div>;
+                
+                return [
+                  { label: 'Teknik Analiz (MACD, RSI, BB)', val: d.techScore, color: 'bg-purple-500', weight: '35%' },
+                  { label: 'Temel Analiz (Rasyolar)', val: d.fundScore, color: 'bg-cyan-500', weight: '25%' },
+                  { label: 'Makro Ekonomi (CDS, VIX)', val: d.macroScoreVal, color: 'bg-blue-500', weight: '20%' },
+                  { label: 'Sentiment (Haber Duygusu)', val: d.haberPuan, color: 'bg-emerald-500', weight: '10%' },
+                  { label: 'Risk ve Volatilite Kalkanı', val: d.riskScore, color: 'bg-amber-500', weight: '10%' },
+                ].map(item => (
+                  <div key={item.label}>
+                    <div className="flex justify-between text-xs mb-1.5">
+                      <span className="text-slate-300 flex items-center gap-1.5">
+                        <span className={`w-2 h-2 rounded-full ${item.color}`}></span>
+                        {item.label} <span className="text-slate-500 text-[10px] ml-1">(Ağırlık: {item.weight})</span>
+                      </span>
+                      <span className="text-white font-bold">{item.val} / 100</span>
+                    </div>
+                    <div className="h-2 w-full bg-[#0d0d1a] border border-white/5 rounded-full overflow-hidden">
+                      <div className={`h-full ${item.color} rounded-full`} style={{ width: `${Math.max(0, Math.min(100, item.val))}%` }}></div>
+                    </div>
+                  </div>
+                ))
+              })()}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
