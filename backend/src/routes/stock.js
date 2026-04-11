@@ -1,7 +1,8 @@
-﻿import { Router } from 'express';
+import { Router } from 'express';
 import prisma from '../lib/prisma.js';
 import { asyncHandler } from '../lib/asyncHandler.js';
 import { fetchStockPrices } from '../services/yahooFinance.js';
+import { analyzeStock } from '../services/analysis.js';
 const router = Router();
 
 router.get('/list', asyncHandler(async (req, res) => {
@@ -25,6 +26,14 @@ router.get('/:ticker/fundamental', asyncHandler(async (req, res) => {
   const { ticker } = req.params;
   const stock = await prisma.stock.findUnique({ where: { ticker }, include: { fundamental: { orderBy: { period: 'desc' }, take: 1 }, ratios: true } });
   res.json(stock);
+}));
+
+// Tam indikatör analizi - sistemde olmayan hisseler de dahil
+router.get('/:ticker/analyze', asyncHandler(async (req, res) => {
+  const { ticker } = req.params;
+  const { period = '3mo' } = req.query;
+  const result = await analyzeStock(ticker.toUpperCase(), period);
+  res.json(result);
 }));
 
 export default router;
