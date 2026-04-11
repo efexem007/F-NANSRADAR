@@ -1,6 +1,10 @@
 import { fetchStockPrices } from './yahooFinance.js';
 import { calculateRSI, calculateMACD, calculateSMA, calculateBollinger } from './technical.js';
 import { getMacroData } from './macroData.js';
+import { findOptimalD, calcOFI } from './fracDiff.js';
+import { detectRegime } from './regimeDetector.js';
+import { calcRiskReport } from './riskAnalytics.js';
+import { softPolicy, calcMultiObjectiveReward } from './hrpOptimizer.js';
 
 /**
  * RSI yorumu
@@ -136,7 +140,7 @@ function generateAICommentary(data) {
 }
 
 /**
- * Ana analiz fonksiyonu
+ * Ana analiz fonksiyonu - v3.0 (5 Kademeli)
  */
 export async function analyzeStock(ticker, period = '3mo') {
   const { priceData, currentPrice } = await fetchStockPrices(ticker, period);
@@ -144,13 +148,18 @@ export async function analyzeStock(ticker, period = '3mo') {
     throw new Error(`${ticker} için yeterli fiyat verisi bulunamadı.`);
   }
 
+  const closes = priceData.map(p => p.close);
+
+  // ─── KADEME 1: Veri Füzyonu ───────────────────────────────────────────────
+  const fracDiffResult = closes.length >= 20 ? findOptimalD(closes) : { d: 0.5, memoryRetained: 50 };
+  const ofiResult = calcOFI(priceData);
+
+  // ─── Teknik İndikatörler ──────────────────────────────────────────────────
   const rsi14Raw = calculateRSI(priceData);
   const macdRaw = calculateMACD(priceData);
   const sma20Raw = calculateSMA(priceData, 20);
   const sma50Raw = calculateSMA(priceData, 50);
   const bollingerRaw = calculateBollinger(priceData);
-
-  const macro = await getMacroData();
 
   const rsiInterp = interpretRSI(rsi14Raw);
   const macdInterp = interpretMACD(macdRaw);
@@ -159,8 +168,13 @@ export async function analyzeStock(ticker, period = '3mo') {
   const volumeInterp = interpretVolume(priceData);
   const trendInterp = interpretTrend(priceData);
 
-  // Ağırlıklı skor
-  const techRaw = (rsiInterp.score * 0.35) + (macdInterp.score * 0.25) + (smaInterp.score * 0.2) + (bollingerInterp.score * 0.2);
+  // ─── KADEME 3: Rejim Tespiti (HMM) ───────────────────────────────────────
+  const regime = detectRegime(priceData);
+  // Dinamik ağırlıklar [Tech, Fundamental, Makro, Sentiment]
+  const [wTech, wFund, wMacro, wSent] = regime.dynamicWeights;
+
+  // ─── Makro ────────────────────────────────────────────────────────────────
+  const macro = await getMacroData();
   let macroScoreVal = 50;
   if (macro.cds < 200) macroScoreVal = 75;
   else if (macro.cds < 300) macroScoreVal = 60;
@@ -168,18 +182,57 @@ export async function analyzeStock(ticker, period = '3mo') {
   if (macro.vix < 20) macroScoreVal = Math.min(100, macroScoreVal + 15);
   else if (macro.vix > 30) macroScoreVal = Math.max(0, macroScoreVal - 15);
 
-  const finalScore = Math.round((techRaw * 0.70) + (macroScoreVal * 0.20) + (volumeInterp.score * 0.10));
+  // ─── KADEME 4: Risk Analizi ───────────────────────────────────────────────
+  const riskReport = calcRiskReport(priceData);
+  const riskScore = riskReport.riskScore || 50;
 
-  let signal = 'BEKLE';
-  if (finalScore >= 70) signal = 'GÜÇLÜ AL';
-  else if (finalScore >= 55) signal = 'AL';
-  else if (finalScore >= 40) signal = 'BEKLE';
-  else if (finalScore >= 25) signal = 'SAT';
+  // Teknik alt skor
+  const techScore = (rsiInterp.score * 0.35) + (macdInterp.score * 0.25) + (smaInterp.score * 0.2) + (bollingerInterp.score * 0.2);
+  
+  // OFI skoru tekniğe dahil (küçük ağırlıkla)
+  const adjustedTechScore = techScore * 0.90 + ofiResult.score * 0.10;
+  const fundScore = 50; // Temel veri yoksa nötr
+
+  // ─── Birleşik Skor - Rejime Göre Dinamik Ağırlıklar ─────────────────────
+  // SignalScore = w_tech*Tech + w_fund*Fund + w_macro*Macro + w_sent*Sent
+  const sentScore = volumeInterp.score; // Hacim ≈ Sentiment proxy
+  
+  const rawScore = (adjustedTechScore * wTech) + 
+                   (fundScore * wFund) + 
+                   (macroScoreVal * wMacro) + 
+                   (sentScore * wSent);
+  
+  // Risk ayarı: Yüksek tail risk final skoru düşürür
+  const riskAdjustment = riskReport.xi > 0.3 ? -5 : riskReport.xi < 0.15 ? +3 : 0;
+  const finalScore = Math.max(0, Math.min(100, Math.round(rawScore + riskAdjustment)));
+
+  // ─── KADEME 5: G-Learning Soft Policy ────────────────────────────────────
+  const regimeKeyMap = { 0: 'calm', 1: 'crisis', 2: 'highVol' };
+  const gPolicy = softPolicy(finalScore, 0.1, regime.probabilities.crisis);
+
+  // Karar formülü: VaR ayarlı nihai karar
+  let signal;
+  const var95 = riskReport.var95;
+  if (finalScore >= 75 && (var95 === null || var95 > -3.0)) signal = 'GÜÇLÜ AL';
+  else if (finalScore >= 60) signal = 'AL';
+  else if (finalScore >= 45) signal = 'BEKLE';
+  else if (finalScore < 45 || regime.probabilities.crisis > 0.6) signal = 'SAT';
   else signal = 'GÜÇLÜ SAT';
 
+  // Multi-objective reward
+  const rewardResult = calcMultiObjectiveReward({
+    dailyReturn: (closes[closes.length - 1] - closes[closes.length - 6]) / closes[closes.length - 6] / 5,
+    cvar: riskReport.cvar95 / 100,
+    drawdown: (riskReport.maxDrawdown || 0) / 100,
+    turnover: 0.002,
+    regime: regimeKeyMap[regime.currentRegime],
+  });
+
+  // Commentary
   const commentary = generateAICommentary({
     rsi: rsiInterp, macd: macdInterp, sma: smaInterp, bollinger: bollingerInterp,
-    volume: volumeInterp, trend: trendInterp, macroData: macro, finalScore, signal
+    volume: volumeInterp, trend: trendInterp, macroData: macro, finalScore, signal,
+    regime, ofi: ofiResult, riskReport, fracDiff: fracDiffResult
   });
 
   return {
@@ -189,14 +242,41 @@ export async function analyzeStock(ticker, period = '3mo') {
     finalScore,
     indicators: {
       rsi: { raw: rsi14Raw, ...rsiInterp },
-      macd: { raw: { macd: macdRaw?.macd, signal: macdRaw?.signal, hist: macdRaw?.hist, trend: macdRaw?.trend }, ...macdInterp },
+      macd: { raw: { macd: macdRaw?.macd, signal: macdRaw?.signal, hist: macdRaw?.hist }, ...macdInterp },
       sma: { raw: { sma20: sma20Raw, sma50: sma50Raw }, ...smaInterp },
       bollinger: { raw: bollingerRaw, ...bollingerInterp },
       volume: { ...volumeInterp },
       trend: { ...trendInterp },
+      ofi: ofiResult,
     },
     macro: { cds: macro.cds, vix: macro.vix, macroScore: macroScoreVal },
+    regime: {
+      name: regime.regimeName,
+      probabilities: regime.probabilities,
+      dynamicWeights: { tech: wTech, fund: wFund, macro: wMacro, sent: wSent },
+      expectedDuration: regime.expectedDuration,
+      crisisRisk: regime.crisisRisk,
+      alert: regime.alert,
+      volatility: regime.recentVolatility,
+    },
+    risk: {
+      var95: riskReport.var95,
+      var99: riskReport.var99,
+      cvar95: riskReport.cvar95,
+      xi: riskReport.xi,
+      tailRisk: riskReport.tailRisk,
+      garch: riskReport.garch,
+      maxDrawdown: riskReport.maxDrawdown,
+      riskScore,
+    },
+    fracDiff: {
+      d: fracDiffResult.d,
+      memoryRetained: fracDiffResult.memoryRetained,
+    },
+    gPolicy: { bestAction: gPolicy.bestAction, bestProb: gPolicy.bestProb },
+    reward: rewardResult.reward,
     commentary,
     priceData: priceData.slice(-60),
   };
 }
+

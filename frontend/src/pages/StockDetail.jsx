@@ -196,6 +196,7 @@ const StockDetail = () => {
           {ind.bollinger && <IndicatorBar label="Bollinger Bantları" icon={Activity} {...ind.bollinger} />}
           {ind.volume && <IndicatorBar label="Hacim Analizi" icon={BarChart2} {...ind.volume} />}
           {ind.trend && <IndicatorBar label="Trend Gücü (20 Gün)" icon={TrendingUp} {...ind.trend} />}
+          {ind.ofi && <IndicatorBar label="OFI (Emir Akışı Dengesi)" icon={Activity} status={ind.ofi.status} score={ind.ofi.score} color={ind.ofi.score >= 60 ? 'green' : ind.ofi.score <= 40 ? 'red' : 'yellow'} comment={ind.ofi.comment} />}
         </div>
 
         {/* Right col: Chart + Commentary */}
@@ -244,7 +245,7 @@ const StockDetail = () => {
         </div>
       </div>
 
-      {/* Fundamental Ratios (if available) */}
+      {/* Fundamental Ratios */}
       {fundamental?.ratios && Object.keys(ratios).length > 0 && (
         <ChartCard icon="🎯" title="Finansal Çarpanlar (Temel Analiz)">
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
@@ -265,6 +266,126 @@ const StockDetail = () => {
             ))}
           </div>
         </ChartCard>
+      )}
+
+      {/* Kademe 3/4/5 Panel */}
+      {analysis && (
+        <div className="grid grid-cols-12 gap-4">
+          {/* Rejim Tespiti */}
+          <div className="col-span-12 md:col-span-4">
+            <ChartCard icon="🧠" title="Rejim Tespiti (HMM)" badge="KADEME 3">
+              <div className="space-y-3">
+                <div className={`text-center py-2 rounded-xl border ${
+                  analysis.regime?.name === 'Kriz' ? 'bg-red-500/10 border-red-500/30 text-red-400' :
+                  analysis.regime?.name === 'Yüksek Vol' ? 'bg-amber-500/10 border-amber-500/30 text-amber-400' :
+                  'bg-emerald-500/10 border-emerald-500/30 text-emerald-400'
+                }`}>
+                  <div className="text-xs text-slate-500 mb-1">Aktif Rejim</div>
+                  <div className="text-lg font-bold">{analysis.regime?.name}</div>
+                  <div className="text-xs mt-1">~{analysis.regime?.expectedDuration} gün kalması bekleniyor</div>
+                </div>
+                {[{label:'Sakin', val: analysis.regime?.probabilities?.calm, c:'green'},{label:'Kriz', val: analysis.regime?.probabilities?.crisis, c:'red'},{label:'Yüksek Vol', val: analysis.regime?.probabilities?.highVol, c:'yellow'}].map(r=>(
+                  <div key={r.label}>
+                    <div className="flex justify-between text-xs mb-1">
+                      <span className="text-slate-400">{r.label}</span>
+                      <span className="font-mono">{((r.val||0)*100).toFixed(0)}%</span>
+                    </div>
+                    <div className="h-1.5 bg-white/5 rounded-full overflow-hidden">
+                      <div className="h-full rounded-full" style={{width:`${(r.val||0)*100}%`, backgroundColor: r.c==='green'?'#10b981':r.c==='red'?'#f43f5e':'#f59e0b'}} />
+                    </div>
+                  </div>
+                ))}
+                <div className="text-[11px] text-slate-500 pt-2 border-t border-white/5">
+                  <div>Dinamik Ağırlıklar:</div>
+                  <div className="grid grid-cols-2 gap-1 mt-1">
+                    <span>Teknik: <b>{((analysis.regime?.dynamicWeights?.tech||0)*100).toFixed(0)}%</b></span>
+                    <span>Makro: <b>{((analysis.regime?.dynamicWeights?.macro||0)*100).toFixed(0)}%</b></span>
+                    <span>Temel: <b>{((analysis.regime?.dynamicWeights?.fund||0)*100).toFixed(0)}%</b></span>
+                    <span>Sentiment: <b>{((analysis.regime?.dynamicWeights?.sent||0)*100).toFixed(0)}%</b></span>
+                  </div>
+                </div>
+                {analysis.regime?.alert && <div className="text-xs p-2 rounded-lg bg-red-500/10 text-red-400 border border-red-500/20">{analysis.regime.alert}</div>}
+              </div>
+            </ChartCard>
+          </div>
+
+          {/* Risk Analytics */}
+          <div className="col-span-12 md:col-span-4">
+            <ChartCard icon="⚠️" title="Risk Analizi (GARCH + VaR)" badge="KADEME 4">
+              <div className="space-y-2.5">
+                {[{
+                  label: 'VaR₉₅ (Günlük)',
+                  value: analysis.risk?.var95 !== null ? `${analysis.risk.var95}%` : '—',
+                  hint: 'Günde %5 ihtimalle bu kadar zarar',
+                  color: (analysis.risk?.var95||0) > -2 ? 'text-green-400' : (analysis.risk?.var95||0) > -3.5 ? 'text-amber-400' : 'text-red-400'
+                },{
+                  label: 'CVaR₉₅ (Beklenen Kayıp)',
+                  value: analysis.risk?.cvar95 !== null ? `${analysis.risk.cvar95}%` : '—',
+                  hint: 'VaR aşıldığında ortalama zarar',
+                  color: (analysis.risk?.cvar95||0) > -3 ? 'text-green-400' : 'text-red-400'
+                },{
+                  label: 'GARCH Volatilite',
+                  value: analysis.risk?.garch?.annualSigma ? `${analysis.risk.garch.annualSigma}%` : '—',
+                  hint: `Kalıcılık: ${analysis.risk?.garch?.persistence?.toFixed(3)||'—'} | Yarı ömür: ${analysis.risk?.garch?.halfLife||'—'} g`,
+                  color: 'text-slate-300'
+                },{
+                  label: 'Tail Index (EVT ξ)',
+                  value: analysis.risk?.xi?.toFixed(3) ?? '—',
+                  hint: analysis.risk?.tailRisk?.level || '',
+                  color: (analysis.risk?.xi||0) < 0.15 ? 'text-green-400' : (analysis.risk?.xi||0) > 0.3 ? 'text-red-400' : 'text-amber-400'
+                },{
+                  label: 'Max Drawdown',
+                  value: analysis.risk?.maxDrawdown ? `${analysis.risk.maxDrawdown}%` : '—',
+                  hint: 'Tarihsel en büyük düşüş',
+                  color: (analysis.risk?.maxDrawdown||0) < 15 ? 'text-green-400' : (analysis.risk?.maxDrawdown||0) > 35 ? 'text-red-400' : 'text-amber-400'
+                }].map(item => (
+                  <div key={item.label} className="flex justify-between items-start py-2 border-b border-white/5">
+                    <div>
+                      <div className="text-xs text-slate-400">{item.label}</div>
+                      <div className="text-[10px] text-slate-600 mt-0.5">{item.hint}</div>
+                    </div>
+                    <span className={`font-bold font-mono text-sm ${item.color}`}>{item.value}</span>
+                  </div>
+                ))}
+              </div>
+            </ChartCard>
+          </div>
+
+          {/* G-Policy + FracDiff */}
+          <div className="col-span-12 md:col-span-4">
+            <ChartCard icon="⚡" title="G-Learning Politikası" badge="KADEME 5">
+              <div className="space-y-3">
+                <div className="text-center py-3 rounded-xl bg-purple-500/10 border border-purple-500/30">
+                  <div className="text-xs text-slate-500 mb-1">En Güçlü Aksiyon (β=0.1)</div>
+                  <div className="text-xl font-bold text-purple-300">{analysis.gPolicy?.bestAction}</div>
+                  <div className="text-xs text-slate-500 mt-1">Güven: %{((analysis.gPolicy?.bestProb||0)*100).toFixed(0)}</div>
+                </div>
+                <div className="space-y-1">
+                  <div className="text-xs text-slate-500 mb-2">Fraksiyon Diferansiyasyon (Kademe 1)</div>
+                  <div className="flex justify-between text-xs">
+                    <span className="text-slate-400">Optimal d</span>
+                    <span className="font-mono font-bold">{analysis.fracDiff?.d}</span>
+                  </div>
+                  <div className="flex justify-between text-xs">
+                    <span className="text-slate-400">Hafıza Korunumu</span>
+                    <span className="font-mono font-bold text-cyan-400">%{analysis.fracDiff?.memoryRetained}</span>
+                  </div>
+                  <div className="h-2 bg-white/5 rounded-full overflow-hidden mt-1">
+                    <div className="h-full bg-cyan-500 rounded-full" style={{width:`${analysis.fracDiff?.memoryRetained||50}%`}} />
+                  </div>
+                  <div className="text-[10px] text-slate-600 mt-1">d={analysis.fracDiff?.d} → %{analysis.fracDiff?.memoryRetained} hafıza korunuyor, seri durağan</div>
+                </div>
+                <div className="pt-2 border-t border-white/5">
+                  <div className="text-xs text-slate-500 mb-1">Çok Amaçlı Ödül (R_t)</div>
+                  <div className={`text-lg font-bold font-mono ${(analysis.reward||0) > 0 ? 'text-green-400' : 'text-red-400'}`}>
+                    {analysis.reward > 0 ? '+' : ''}{(analysis.reward||0).toFixed(4)}
+                  </div>
+                  <div className="text-[10px] text-slate-600">Getiri - CVaR Cezası - Drawdown Cezası</div>
+                </div>
+              </div>
+            </ChartCard>
+          </div>
+        </div>
       )}
     </div>
   )
