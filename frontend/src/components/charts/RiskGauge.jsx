@@ -1,4 +1,6 @@
-export default function RiskGauge({ score = 65 }) {
+import { memo } from 'react'
+
+export default memo(function RiskGauge({ score = 65 }) {
   const angle = (score / 100) * 180 - 90
   const rad = (angle * Math.PI) / 180
   const cx = 100, cy = 100, r = 80
@@ -17,4 +19,4 @@ export default function RiskGauge({ score = 65 }) {
       </svg>
     </div>
   )
-}
+})

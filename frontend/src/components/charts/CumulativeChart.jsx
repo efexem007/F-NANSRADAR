@@ -1,7 +1,8 @@
+import { memo } from 'react'
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts'
 import { STOCK_COLORS } from '../../constants/colors'
 
-export default function CumulativeChart({ data, tickers }) {
+export default memo(function CumulativeChart({ data, tickers }) {
   return (
     <ResponsiveContainer width="100%" height={200}>
       <AreaChart data={data} syncId="finansradar">
@@ -13,17 +14,17 @@ export default function CumulativeChart({ data, tickers }) {
             </linearGradient>
           ))}
         </defs>
-        <XAxis dataKey="date" tick={{ fill: '#64748b', fontSize: 9 }} />
-        <YAxis tickFormatter={v => `${v}%`} tick={{ fill: '#64748b', fontSize: 10 }} />
+        <XAxis dataKey="date" tick={{ fill: '#64748b', fontSize: 9 }} axisLine={false} tickLine={false} />
+        <YAxis tickFormatter={v => `${v}%`} tick={{ fill: '#64748b', fontSize: 10 }} axisLine={false} tickLine={false} />
         <Tooltip formatter={v => `${typeof v === 'number' ? v.toFixed(1) : v}%`}
           contentStyle={{ background: '#1a1a35', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 12, fontSize: 12 }}
-          labelStyle={{ color: '#94a3b8' }} />
+          labelStyle={{ color: '#94a3b8' }} cursor={{ stroke: 'rgba(255,255,255,0.1)' }} />
         {tickers.map(ticker => (
           <Area key={ticker} type="monotone" dataKey={ticker}
             stroke={STOCK_COLORS[ticker] || '#94a3b8'} strokeWidth={2}
-            fill={`url(#grad_${ticker})`} animationDuration={1500} />
+            fill={`url(#grad_${ticker})`} isAnimationActive={false} />
         ))}
       </AreaChart>
     </ResponsiveContainer>
   )
-}
+})

@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom'
 import client from '../api/client'
 import { formatCurrency, formatPercent } from '../utils/formatters'
 import { STOCK_COLORS, getColor } from '../constants/colors'
-import { useCounter } from '../hooks/useCounter'
+import AnimatedNumber from '../components/AnimatedNumber'
 import { useFavorites } from '../hooks/useFavorites'
 import { calculateSharpe } from '../utils/predictions'
 import TimelineSlider, { months } from '../components/TimelineSlider'
@@ -87,9 +87,6 @@ const Dashboard = () => {
   const bestStock = allStockPrices.reduce((a, b) => a.lastPrice > b.lastPrice ? a : b, allStockPrices[0] || {})
   const worstStock = allStockPrices.reduce((a, b) => a.lastPrice < b.lastPrice ? a : b, allStockPrices[0] || {})
   const totalMarketCap = allStockPrices.reduce((s, st) => s + (st.lastPrice || 0) * 1e9, 0)
-
-  // Madde 28: Animated KPI
-  const animatedMarket = useCounter(totalMarketCap / 1e12, 1500)
 
   // Madde 13: Line chart data (multi-stock)
   const lineChartData = useMemo(() => {
@@ -222,7 +219,7 @@ const Dashboard = () => {
         {[
           { icon: '🚀', label: 'En Yüksek Fiyat', value: `₺${bestStock?.lastPrice?.toFixed(2) || '—'}`, sub: bestStock?.ticker },
           { icon: '📉', label: 'En Düşük Fiyat', value: `₺${worstStock?.lastPrice?.toFixed(2) || '—'}`, sub: worstStock?.ticker },
-          { icon: '💰', label: 'Toplam Piyasa', value: `₺${animatedMarket.toFixed(1)}T`, sub: `${tickers.length} hisse` },
+          { icon: '💰', label: 'Toplam Piyasa', value: <AnimatedNumber value={totalMarketCap / 1e12} prefix="₺" suffix="T" />, sub: `${tickers.length} hisse` },
           { icon: '📊', label: 'CDS Spread', value: `${cds?.value || '—'} bps`, sub: 'Türkiye Riski' },
           { icon: '⚡', label: 'VIX Endeksi', value: `${vix?.value || '—'}`, sub: 'Piyasa Volatilitesi' },
         ].map(kpi => (

@@ -17,15 +17,17 @@ body {
 /* Glassmorphism */
 .glass-card {
   background: rgba(255, 255, 255, 0.04);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
   border: 1px solid rgba(255, 255, 255, 0.08);
   border-radius: 16px;
+  transform: translateZ(0); /* Force GPU acceleration */
+  backface-visibility: hidden;
 }
 .glass-card-hover:hover {
   background: rgba(255, 255, 255, 0.07);
   border-color: rgba(255, 255, 255, 0.15);
-  transition: all 0.2s ease;
+  transition: background-color 0.15s ease, border-color 0.15s ease;
 }
 
 /* Gradient Text */
@@ -46,7 +48,7 @@ body {
   font-weight: 500;
   font-size: 0.875rem;
   color: #64748b;
-  transition: all 0.2s;
+  transition: color 0.15s ease, background 0.15s ease, box-shadow 0.15s ease;
   text-decoration: none;
 }
 .sidebar-link:hover { background: rgba(255,255,255,0.05); color: #94a3b8; }
@@ -61,7 +63,7 @@ body {
 * { -ms-overflow-style: none; scrollbar-width: none; }
 
 /* Chart transition */
-.chart-transition { transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1); }
+.chart-transition { transition: opacity 0.3s ease-out; }
 
 /* Tooltip fade */
 @keyframes fadeIn {
@@ -103,7 +105,8 @@ input[type="range"]::-webkit-slider-runnable-track {
   padding: 0.625rem 1rem;
   font-size: 0.875rem;
   outline: none;
-  transition: all 0.2s;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+  transform: translateZ(0);
 }
 .input-field:focus {
   border-color: rgba(139, 92, 246, 0.5);
@@ -120,7 +123,7 @@ input[type="range"]::-webkit-slider-runnable-track {
   border-radius: 0.75rem;
   border: none;
   cursor: pointer;
-  transition: all 0.2s;
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -139,7 +142,7 @@ input[type="range"]::-webkit-slider-runnable-track {
   padding: 0.625rem 1.5rem;
   border-radius: 0.75rem;
   cursor: pointer;
-  transition: all 0.2s;
+  transition: border-color 0.15s ease, color 0.15s ease, background-color 0.15s ease;
   display: inline-flex;
   align-items: center;
   justify-content: center;
