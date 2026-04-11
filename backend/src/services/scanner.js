@@ -12,6 +12,18 @@ export async function scanSingleStock(ticker) {
     const priceData = await fetchStockPrices(ticker, '3mo', '1d');
     if (!priceData.priceData.length) throw new Error('Fiyat verisi yok');
 
+    // Hissenin veritabanında var olduğundan emin ol
+    await prisma.stock.upsert({
+      where: { ticker },
+      update: {},
+      create: {
+        ticker,
+        name: ticker,
+        sector: 'Unknown',
+        lastPrice: priceData.currentPrice
+      }
+    });
+
     for (const point of priceData.priceData) {
       await prisma.pricePoint.upsert({
         where: { stockTicker_date: { stockTicker: ticker, date: point.date } },

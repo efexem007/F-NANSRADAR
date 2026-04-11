@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react'
+import { Link, useNavigate } from 'react-router-dom'
 import client from '../api/client'
 import { formatCurrency, formatDate } from '../utils/formatters'
-import { TrendingUp, RefreshCw, Activity, Search, Zap } from 'lucide-react'
+import { TrendingUp, RefreshCw, Activity, Search, Zap, ExternalLink } from 'lucide-react'
 import ChartCard from '../components/ChartCard'
 
 const SIGNAL_STYLES = {
@@ -13,6 +14,7 @@ const SIGNAL_STYLES = {
 }
 
 const Signals = () => {
+  const navigate = useNavigate()
   const [signals, setSignals] = useState([])
   const [loading, setLoading] = useState(true)
   const [calcTicker, setCalcTicker] = useState('')
@@ -92,8 +94,8 @@ const Signals = () => {
                   <tbody>
                     {filtered.length === 0 ? <tr><td colSpan="5" className="text-center py-10 text-slate-500">Kayıtlı sinyal yok.</td></tr> :
                     filtered.map((sig, i) => (
-                      <tr key={i}>
-                        <td className="font-semibold">{sig.ticker}</td>
+                      <tr key={i} onClick={() => navigate(`/stock/${sig.ticker}`)} className="cursor-pointer hover:bg-purple-500/5 transition-colors">
+                        <td className="font-semibold text-purple-400 flex items-center gap-1">{sig.ticker} <ExternalLink size={12} className="text-slate-600"/></td>
                         <td className="text-slate-500 text-xs">{formatDate(sig.createdAt)}</td>
                         <td className="text-right font-mono text-slate-400">{formatCurrency(sig.price)}</td>
                         <td><div className="flex items-center gap-2"><div className="w-14 h-1.5 bg-white/5 rounded-full overflow-hidden"><div className="h-full bg-gradient-to-r from-red-500 via-yellow-500 to-green-500" style={{ width: `${Math.min(100, Math.max(0, sig.score))}%` }} /></div><span className="text-[11px] text-slate-500 font-mono">{sig.score}</span></div></td>

@@ -1,5 +1,6 @@
 import { PrismaClient } from '@prisma/client';
-import yahooFinance from 'yahoo-finance2';
+import YahooFinance from 'yahoo-finance2';
+const yahooFinance = new YahooFinance();
 
 const prisma = new PrismaClient();
 

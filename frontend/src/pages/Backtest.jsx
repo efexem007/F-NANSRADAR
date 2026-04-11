@@ -63,11 +63,11 @@ const Backtest = () => {
             )}
             {result && (
               <div className="animate-fade-in">
-                <div className="grid grid-cols-4 gap-3 mb-4">
+                <div className="grid grid-cols-4 gap-3 mb-5">
                   {[
-                    { label: 'Final Bakiye', value: formatCurrency(result.finalCapital), color: 'text-white' },
+                    { label: 'Final Bakıye', value: formatCurrency(result.finalCapital), color: 'text-white' },
                     { label: 'Toplam Getiri', value: `${result.totalReturnPercent >= 0 ? '+' : ''}${formatPercent(result.totalReturnPercent)}`, color: result.totalReturnPercent >= 0 ? 'text-green-400' : 'text-red-400' },
-                    { label: 'Kazanma Oranı', value: `${result.winRate?.toFixed(1)}%`, color: 'text-cyan-400' },
+                    { label: 'Kazanım Oranı', value: `${result.winRate?.toFixed(1)}%`, color: 'text-cyan-400' },
                     { label: 'Maks Düşüş', value: `-${result.maxDrawdownPercent?.toFixed(1)}%`, color: 'text-yellow-400' },
                   ].map(c => (
                     <div key={c.label} className="glass-card !p-3">
@@ -76,6 +76,24 @@ const Backtest = () => {
                     </div>
                   ))}
                 </div>
+                {result.trades && result.trades.length > 0 && (
+                  <div className="overflow-auto max-h-64">
+                    <table className="w-full data-table">
+                      <thead><tr><th>Tarih</th><th>İşlem</th><th className="text-right">Fiyat</th></tr></thead>
+                      <tbody>
+                        {result.trades.map((t, i) => (
+                          <tr key={i}>
+                            <td className="text-slate-400 text-xs">{new Date(t.date).toLocaleDateString('tr-TR')}</td>
+                            <td><span className={`text-xs font-bold px-2 py-0.5 rounded ${
+                              t.action === 'BUY' ? 'bg-green-500/20 text-green-400' : 'bg-red-500/20 text-red-400'
+                            }`}>{t.action === 'BUY' ? 'AL' : 'SAT'}</span></td>
+                            <td className="text-right font-mono">{formatCurrency(t.price)}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
               </div>
             )}
           </ChartCard>

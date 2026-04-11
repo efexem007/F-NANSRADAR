@@ -8,7 +8,7 @@ import { linearRegression, calculateEMA } from '../utils/predictions'
 import ChartCard from '../components/ChartCard'
 import ChartTooltip from '../components/ChartTooltip'
 import RiskGauge from '../components/charts/RiskGauge'
-import { Activity, ArrowLeft } from 'lucide-react'
+import { Activity, ArrowLeft, RefreshCw } from 'lucide-react'
 
 const StockDetail = () => {
   const { ticker } = useParams()
@@ -16,6 +16,8 @@ const StockDetail = () => {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [period, setPeriod] = useState('3mo')
+  const [aiSignal, setAiSignal] = useState(null)
+  const [scanning, setScanning] = useState(false)
   const color = getColor(ticker)
 
   // Madde 44: multi-period
@@ -28,15 +30,27 @@ const StockDetail = () => {
     (async () => {
       try {
         setLoading(true)
-        const [fundRes, priceRes] = await Promise.all([
+        const [fundRes, priceRes, signalRes] = await Promise.all([
           client.get(`/stock/${ticker}/fundamental`),
-          client.get(`/stock/${ticker}/price?period=${period}`)
+          client.get(`/stock/${ticker}/price?period=${period}`),
+          client.get(`/scan/results`).catch(() => ({ data: [] }))
         ])
         setData({ fund: fundRes.data, price: priceRes.data })
+        const tickerSignal = signalRes.data.find(s => s.ticker === ticker)
+        setAiSignal(tickerSignal || null)
       } catch { setError('Hisse verileri yüklenemedi.') }
       finally { setLoading(false) }
     })()
   }, [ticker, period])
+
+  const handleQuickScan = async () => {
+    setScanning(true)
+    try {
+      const { data: scanData } = await client.post(`/scan/stock/${ticker}`)
+      setAiSignal(scanData)
+    } catch {}
+    finally { setScanning(false) }
+  }
 
   // Madde 37: EMA
   const priceWithEma = useMemo(() => {
@@ -134,7 +148,24 @@ const StockDetail = () => {
             <RatioRow label="Borç/FAVÖK" value={ratios.nfbToEbitda} />
           </ChartCard>
           <ChartCard icon="⚖️" title="Risk Skoru" badge="AI" badgeColor="ai">
-            <RiskGauge score={65} />
+            {aiSignal ? (
+              <div className="text-center py-2">
+                <RiskGauge score={aiSignal.score || 65} />
+                <div className={`mt-2 text-sm font-bold ${
+                  aiSignal.signal?.includes('GÜÇLÜ AL') || aiSignal.signal?.includes('GUCLU AL') ? 'text-emerald-400' :
+                  aiSignal.signal?.includes('AL') ? 'text-green-400' :
+                  aiSignal.signal?.includes('SAT') ? 'text-red-400' : 'text-amber-400'
+                }`}>{aiSignal.signal}</div>
+              </div>
+            ) : (
+              <div className="text-center py-4">
+                <RiskGauge score={65} />
+                <button onClick={handleQuickScan} disabled={scanning}
+                  className="mt-3 text-xs px-3 py-1.5 rounded-lg bg-purple-600/30 border border-purple-500/50 text-purple-300 hover:text-white transition-all flex items-center gap-1 mx-auto">
+                  {scanning ? <RefreshCw size={12} className="animate-spin"/> : <Activity size={12}/>} AI ile Analiz Et
+                </button>
+              </div>
+            )}
           </ChartCard>
         </div>
       </div>

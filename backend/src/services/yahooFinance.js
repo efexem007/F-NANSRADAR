@@ -1,5 +1,5 @@
-﻿import yahooFinance from 'yahoo-finance2';
-
+import YahooFinance from 'yahoo-finance2';
+const yahooFinance = new YahooFinance();
 export const fetchStockPrices = async (ticker, period = '3mo', interval = '1d') => {
   try {
     const query = `${ticker}.IS`;
@@ -11,8 +11,15 @@ export const fetchStockPrices = async (ticker, period = '3mo', interval = '1d') 
       case '1y': period1.setFullYear(period1.getFullYear() - 1); break;
       default: period1.setMonth(period1.getMonth() - 3);
     }
-    const result = await yahooFinance.historical(query, { period1, interval });
-    const priceData = result.map(item => ({ date: item.date, open: item.open, high: item.high, low: item.low, close: item.close, volume: item.volume }));
+    const period2 = new Date(); // now
+    const opts = { period1: period1.toISOString(), period2: period2.toISOString(), interval };
+    const chartData = await yahooFinance.chart(query, opts);
+    
+    if (!chartData || !chartData.quotes) return { priceData: [], currentPrice: null };
+    
+    const priceData = chartData.quotes
+      .filter(item => item.close !== null)
+      .map(item => ({ date: item.date, open: item.open, high: item.high, low: item.low, close: item.close, volume: item.volume }));
     const currentPrice = priceData[priceData.length - 1]?.close || null;
     return { priceData, currentPrice };
   } catch (error) {

@@ -61,9 +61,11 @@ const Dashboard = () => {
         setMacros(macroRes.data)
         setSignals(sigRes.data)
 
-        const tickers = ['THYAO', 'AKBNK', 'TUPRS', 'ASELS']
+        const portItems = portRes.data.items || []
+        const tickers = portItems.map(i => i.ticker)
+        const allTickers = tickers.length > 0 ? tickers : ['THYAO', 'AKBNK', 'TUPRS', 'ASELS']
         const priceData = {}
-        for (const ticker of tickers) {
+        for (const ticker of allTickers) {
           try {
             const res = await client.get(`/stock/${ticker}/price?period=3mo`)
             priceData[ticker] = res.data.priceData || []
