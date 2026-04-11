@@ -9,7 +9,6 @@ import {
   Legend,
   Filler
 } from 'chart.js';
-import { Line } from 'react-router-dom';
 import { Line as ChartLine } from 'react-chartjs-2';
 
 ChartJS.register(

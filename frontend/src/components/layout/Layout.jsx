@@ -7,23 +7,24 @@ const Layout = () => {
   const { user } = useContext(AuthContext);
 
   return (
-    <div className="flex min-h-screen bg-[#0a0e27]">
+    <div className="flex min-h-screen bg-bg-primary">
       <Sidebar />
-      <div className="flex-1 ml-64 flex flex-col">
-        <header className="h-16 flex items-center justify-between px-8 border-b border-[rgba(255,255,255,0.05)] bg-[#0a0e27]/80 backdrop-blur-md sticky top-0 z-10">
-          <div className="font-medium text-gray-300">
+      <div className="flex-1 ml-[240px] flex flex-col">
+        {/* Top Header Bar */}
+        <header className="h-14 flex items-center justify-between px-8 border-b border-border bg-bg-header/80 backdrop-blur-md sticky top-0 z-20">
+          <div className="text-sm text-text-muted font-medium">
             {new Date().toLocaleDateString('tr-TR', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
           </div>
-          <div className="flex items-center gap-4">
-            <div className="flex items-center gap-2">
-              <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-[#00d4ff] to-[#9b51e0] flex items-center justify-center font-bold text-[#0a0e27]">
-                {user?.name?.charAt(0).toUpperCase() || 'U'}
-              </div>
-              <span className="font-medium hidden sm:block">{user?.name || 'User'}</span>
+          <div className="flex items-center gap-3">
+            <div className="w-8 h-8 rounded-full bg-gradient-to-br from-accent to-purple flex items-center justify-center text-sm font-bold text-bg-primary">
+              {user?.name?.charAt(0).toUpperCase() || 'U'}
             </div>
+            <span className="text-sm font-medium text-text-secondary">{user?.name || 'Kullanıcı'}</span>
           </div>
         </header>
-        <main className="flex-1 p-8 overflow-x-hidden">
+
+        {/* Page Content */}
+        <main className="flex-1 p-6 overflow-x-hidden">
           <Outlet />
         </main>
       </div>

@@ -1,11 +1,12 @@
 import { useState, useEffect } from 'react';
-import { useParams } from 'react-router-dom';
+import { useParams, Link } from 'react-router-dom';
 import client from '../api/client';
-import { Card } from '../components/ui/Card';
-import { LoadingSpinner, ErrorAlert } from '../components/ui/Feedback';
-import { PriceChart } from '../components/ui/PriceChart';
+import { Line } from 'react-chartjs-2';
+import { Chart as ChartJS, CategoryScale, LinearScale, PointElement, LineElement, Tooltip, Filler } from 'chart.js';
 import { formatCurrency, formatNumber } from '../utils/formatters';
-import { Activity, Target, BarChart2 } from 'lucide-react';
+import { Activity, Target, BarChart2, ArrowLeft } from 'lucide-react';
+
+ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Tooltip, Filler);
 
 const StockDetail = () => {
   const { ticker } = useParams();
@@ -15,117 +16,112 @@ const StockDetail = () => {
   const [period, setPeriod] = useState('3mo');
 
   useEffect(() => {
-    fetchStockData();
+    (async () => {
+      try {
+        setLoading(true);
+        const [fundRes, priceRes] = await Promise.all([
+          client.get(`/stock/${ticker}/fundamental`),
+          client.get(`/stock/${ticker}/price?period=${period}`)
+        ]);
+        setData({ fund: fundRes.data, price: priceRes.data });
+      } catch { setError('Hisse verileri yüklenemedi.'); }
+      finally { setLoading(false); }
+    })();
   }, [ticker, period]);
 
-  const fetchStockData = async () => {
-    try {
-      setLoading(true);
-      const [fundRes, priceRes] = await Promise.all([
-        client.get(`/stock/${ticker}/fundamental`),
-        client.get(`/stock/${ticker}/price?period=${period}`)
-      ]);
-      setData({ fund: fundRes.data, price: priceRes.data });
-    } catch (err) {
-      setError('Hisse verileri yüklenemedi.');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const RatioRow = ({ label, value }) => (
-    <div className="flex justify-between items-center py-2 border-b border-[rgba(255,255,255,0.05)] text-sm px-1">
-      <span className="text-gray-400">{label}</span>
-      <span className="font-bold text-white">{value !== null && value !== undefined ? value : '-'}</span>
-    </div>
-  );
-
-  if (loading && !data) return <LoadingSpinner text="Hisse analizi yükleniyor..." />;
-  if (error) return <div className="p-4"><ErrorAlert message={error} /></div>;
-  if (!data || !data.fund) return <div className="p-8 text-center text-gray-500">Kayıt Bulunamadı</div>;
+  if (loading && !data) return <div className="flex items-center justify-center h-[60vh]"><div className="w-10 h-10 border-4 border-accent border-t-transparent rounded-full animate-spin" /></div>;
+  if (error) return <div className="bg-red/10 border border-red/20 text-red text-sm p-4 rounded-lg">{error}</div>;
+  if (!data?.fund) return <div className="text-center py-20 text-text-muted">Kayıt bulunamadı</div>;
 
   const { fund, price } = data;
   const ratios = fund.ratios || {};
-  const currentPrice = price.currentPrice;
+  const labels = price.priceData?.map(p => new Date(p.date).toLocaleDateString('tr-TR', { day: '2-digit', month: 'short' })) || [];
+  const values = price.priceData?.map(p => p.close) || [];
 
-  // Format chart data
-  const chartLabels = price.priceData?.map(p => new Date(p.date).toLocaleDateString('tr-TR')) || [];
-  const chartValues = price.priceData?.map(p => p.close) || [];
+  const chartData = {
+    labels,
+    datasets: [{
+      fill: true, data: values,
+      borderColor: '#a855f7', borderWidth: 2, pointRadius: 0, pointHoverRadius: 5, tension: 0.4,
+      backgroundColor: (ctx) => {
+        const g = ctx.chart.ctx.createLinearGradient(0, 0, 0, 300);
+        g.addColorStop(0, 'rgba(168,85,247,0.3)'); g.addColorStop(1, 'rgba(168,85,247,0)');
+        return g;
+      },
+    }],
+  };
+  const chartOpts = {
+    responsive: true, maintainAspectRatio: false,
+    plugins: { legend: { display: false }, tooltip: { backgroundColor: '#1e293b', titleColor: '#94a3b8', bodyColor: '#f1f5f9', borderColor: 'rgba(255,255,255,0.1)', borderWidth: 1, padding: 10 } },
+    scales: { x: { grid: { display: false }, ticks: { color: '#475569', font: { size: 10 }, maxTicksLimit: 8 } }, y: { grid: { color: 'rgba(255,255,255,0.04)' }, ticks: { color: '#475569', font: { size: 10 } } } },
+    interaction: { intersect: false, mode: 'index' },
+  };
+
+  const RatioRow = ({ label, value }) => (
+    <div className="flex justify-between items-center py-2.5 border-b border-border text-sm">
+      <span className="text-text-muted">{label}</span>
+      <span className="font-semibold font-mono">{value ?? '—'}</span>
+    </div>
+  );
 
   return (
-    <div className="space-y-6 animate-in fade-in duration-500">
+    <div className="space-y-6 animate-fade-in">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <h1 className="text-3xl font-bold flex items-center gap-3">
-          <Activity size={32} className="text-[#00d4ff]" />
-          <span className="bg-[#1a2141] px-3 py-1 rounded-lg border border-[#00d4ff] text-white">
-            {ticker}
-          </span> 
-          Analizi
-        </h1>
+        <div className="flex items-center gap-3">
+          <Link to="/portfolio" className="w-8 h-8 rounded-lg bg-bg-card border border-border flex items-center justify-center hover:border-accent transition-colors">
+            <ArrowLeft size={16} className="text-text-muted" />
+          </Link>
+          <div>
+            <h1 className="text-2xl font-bold flex items-center gap-2">
+              <Activity size={24} className="text-purple" />
+              <span className="bg-bg-card px-3 py-1 rounded-lg border border-purple/30 text-white font-mono">{ticker}</span>
+              Analizi
+            </h1>
+          </div>
+        </div>
         <div className="text-right">
-          <p className="text-sm text-gray-400">Güncel Fiyat</p>
-          <p className="text-3xl font-bold text-white">{formatCurrency(currentPrice)}</p>
+          <p className="text-xs text-text-muted uppercase tracking-wider">Güncel Fiyat</p>
+          <p className="text-3xl font-bold">{formatCurrency(price.currentPrice)}</p>
         </div>
       </div>
-      
+
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Fiyat Grafiği */}
-        <Card className="lg:col-span-2 min-h-[400px] flex flex-col">
+        {/* Chart */}
+        <div className="glass-card lg:col-span-2">
           <div className="flex items-center justify-between mb-4">
-            <h2 className="text-lg font-semibold text-gray-300 flex items-center gap-2">
-              <BarChart2 size={18}/> Fiyat Grafiği Yörüngesi
-            </h2>
-            <div className="flex gap-2">
+            <h2 className="text-sm font-semibold flex items-center gap-2"><BarChart2 size={16} className="text-purple" /> Fiyat Yörüngesi</h2>
+            <div className="flex gap-1.5">
               {['1mo', '3mo', '6mo', '1y'].map(p => (
-                <button
-                  key={p}
-                  onClick={() => setPeriod(p)}
-                  className={`text-xs font-bold px-3 py-1 rounded-full border transition-colors ${
-                    period === p ? 'bg-[#00d4ff]/10 text-[#00d4ff] border-[#00d4ff]' : 'border-gray-700 text-gray-500 hover:text-gray-300'
-                  }`}
-                >
+                <button key={p} onClick={() => setPeriod(p)}
+                  className={`text-[11px] font-bold px-3 py-1 rounded-full border transition-colors ${period === p ? 'bg-purple/10 text-purple border-purple/30' : 'border-border text-text-muted hover:text-text-secondary'}`}>
                   {p.toUpperCase()}
                 </button>
               ))}
             </div>
           </div>
-          <div className="flex-1 w-full relative min-h-[300px]">
-            {loading ? <LoadingSpinner /> : (
-               <PriceChart labels={chartLabels} data={chartValues} color="#9b51e0" />
-            )}
+          <div className="h-[320px]">{loading ? <div className="flex items-center justify-center h-full"><div className="w-8 h-8 border-4 border-purple border-t-transparent rounded-full animate-spin" /></div> : <Line data={chartData} options={chartOpts} />}</div>
+        </div>
+
+        {/* Ratios */}
+        <div className="space-y-4">
+          <div className="glass-card">
+            <h2 className="text-sm font-semibold mb-3 flex items-center gap-2"><Target size={16} className="text-green" /> Finansal Çarpanlar</h2>
+            <RatioRow label="F/K" value={ratios.fk} />
+            <RatioRow label="PD/DD" value={ratios.pddd} />
+            <RatioRow label="Cari Oran" value={ratios.currentRatio} />
+            <RatioRow label="Asit Test" value={ratios.acidTest} />
+            <RatioRow label="Net Marj (%)" value={ratios.netMargin} />
+            <RatioRow label="Kaldıraç" value={ratios.leverage} />
+            <RatioRow label="Borç/FAVÖK" value={ratios.nfbToEbitda} />
           </div>
-        </Card>
-        
-        {/* Temel Oranlar & Göstergeler */}
-        <div className="space-y-6">
-          <Card>
-            <h2 className="text-lg font-semibold mb-4 text-gray-300 flex items-center gap-2">
-              <Target size={18} className="text-[#00ff88]" /> Finansal Çarpanlar
-            </h2>
-            <div className="space-y-1">
-              <RatioRow label="F/K" value={ratios.fk} />
-              <RatioRow label="PD/DD" value={ratios.pddd} />
-              <RatioRow label="Cari Oran" value={ratios.currentRatio} />
-              <RatioRow label="Asit Test" value={ratios.acidTest} />
-              <RatioRow label="Net Marj (%)" value={ratios.netMargin} />
-              <RatioRow label="Kaldıraç" value={ratios.leverage} />
-              <RatioRow label="Net Borç/FAVÖK" value={ratios.nfbToEbitda} />
-            </div>
-            {fund.fundamental?.length > 0 && (
-              <p className="text-xs text-gray-500 text-right mt-3">
-                * {fund.fundamental[0].period} bilançosuna göre
-              </p>
-            )}
-          </Card>
-          
-          <Card className="bg-gradient-to-br from-[#1a2141] to-[#0a0e27]">
-            <h2 className="text-lg font-semibold mb-2 text-white">Pratik Sinyal Gönderimi</h2>
-            <p className="text-sm text-gray-400 mb-4">Bu hisse için Sinyal sayfasında bir hesaplama başlatın ya da Backtest simülatöründe geçmiş yıllardaki performansını ölçün.</p>
+          <div className="glass-card bg-gradient-to-br from-bg-card to-bg-primary">
+            <h2 className="text-sm font-semibold mb-2">Hızlı Erişim</h2>
+            <p className="text-xs text-text-muted mb-3">Bu hisse için sinyal hesapla veya geçmişi simüle et.</p>
             <div className="flex gap-2">
-               <a href="/signals" className="flex-1 text-center bg-[#00d4ff]/20 text-[#00d4ff] hover:bg-[#00d4ff]/30 py-2 rounded font-medium transition-colors text-sm">Sinyallere Git</a>
-               <a href="/backtest" className="flex-1 text-center bg-[#9b51e0]/20 text-[#9b51e0] hover:bg-[#9b51e0]/30 py-2 rounded font-medium transition-colors text-sm">Simüle Et</a>
+              <Link to="/signals" className="flex-1 text-center bg-accent/10 text-accent hover:bg-accent/20 py-2 rounded-lg font-semibold text-xs transition-colors">Sinyaller</Link>
+              <Link to="/backtest" className="flex-1 text-center bg-purple/10 text-purple hover:bg-purple/20 py-2 rounded-lg font-semibold text-xs transition-colors">Simüle Et</Link>
             </div>
-          </Card>
+          </div>
         </div>
       </div>
     </div>

@@ -1,68 +1,58 @@
 import { NavLink } from 'react-router-dom';
 import { 
-  BarChart2, 
-  PieChart, 
-  Activity, 
-  Settings, 
-  LogOut,
-  TrendingUp,
-  Cpu
+  BarChart2, PieChart, Activity, Settings, LogOut, TrendingUp, Cpu, Globe
 } from 'lucide-react';
 import { useContext } from 'react';
 import { AuthContext } from '../../context/AuthContext';
-import clsx from 'clsx';
+
+const links = [
+  { to: '/',          icon: Activity,   label: 'Dashboard' },
+  { to: '/portfolio', icon: PieChart,   label: 'Portföy' },
+  { to: '/signals',   icon: TrendingUp, label: 'Sinyaller' },
+  { to: '/backtest',  icon: Cpu,        label: 'Backtest' },
+  { to: '/macro',     icon: Globe,      label: 'Makro' },
+  { to: '/settings',  icon: Settings,   label: 'Ayarlar' },
+];
 
 const Sidebar = () => {
   const { logout } = useContext(AuthContext);
 
-  const links = [
-    { to: '/', icon: Activity, label: 'Dashboard' },
-    { to: '/portfolio', icon: PieChart, label: 'Portföy' },
-    { to: '/signals', icon: TrendingUp, label: 'Sinyaller' },
-    { to: '/backtest', icon: Cpu, label: 'Backtest' },
-    { to: '/macro', icon: BarChart2, label: 'Makro' },
-    { to: '/settings', icon: Settings, label: 'Ayarlar' },
-  ];
-
   return (
-    <div className="w-64 h-screen bg-[#0d122b] border-r border-[rgba(255,255,255,0.05)] flex flex-col fixed left-0 top-0">
-      <div className="h-16 flex items-center px-6 border-b border-[rgba(255,255,255,0.05)]">
-        <h1 className="text-xl font-bold text-gradient flex items-center gap-2">
-          <Activity size={24} className="text-[#00d4ff]" />
-          FinansRadar
-        </h1>
+    <aside className="w-[240px] h-screen bg-bg-sidebar border-r border-border fixed left-0 top-0 flex flex-col z-30">
+      {/* Logo */}
+      <div className="h-16 flex items-center gap-2.5 px-6 border-b border-border">
+        <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-accent to-purple flex items-center justify-center">
+          <Activity size={18} className="text-bg-primary" />
+        </div>
+        <span className="text-lg font-bold text-gradient tracking-tight">FinansRadar</span>
       </div>
 
-      <nav className="flex-1 py-6 px-4 space-y-2 overflow-y-auto">
+      {/* Navigation */}
+      <nav className="flex-1 py-5 px-3 space-y-1 overflow-y-auto">
+        <p className="text-[11px] font-semibold uppercase tracking-wider text-text-muted px-3 mb-3">Genel</p>
         {links.map((link) => (
           <NavLink
             key={link.to}
             to={link.to}
+            end={link.to === '/'}
             className={({ isActive }) =>
-              clsx(
-                "flex items-center gap-3 px-4 py-3 rounded-lg font-medium transition-all duration-200",
-                isActive 
-                  ? "bg-[#1a2141] text-[#00d4ff] shadow-[inset_4px_0_0_#00d4ff]" 
-                  : "text-gray-400 hover:bg-[#1a2141] hover:text-gray-200"
-              )
+              `sidebar-link ${isActive ? 'active' : ''}`
             }
           >
-            <link.icon size={20} />
+            <link.icon size={18} />
             {link.label}
           </NavLink>
         ))}
       </nav>
 
-      <div className="p-4 border-t border-[rgba(255,255,255,0.05)]">
-        <button
-          onClick={logout}
-          className="flex items-center gap-3 w-full px-4 py-3 rounded-lg font-medium text-gray-400 hover:bg-red-500/10 hover:text-red-400 transition-colors"
-        >
-          <LogOut size={20} />
+      {/* Logout */}
+      <div className="p-3 border-t border-border">
+        <button onClick={logout} className="sidebar-link w-full hover:!text-red hover:!bg-red/10">
+          <LogOut size={18} />
           Çıkış Yap
         </button>
       </div>
-    </div>
+    </aside>
   );
 };
 

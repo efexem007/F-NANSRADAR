@@ -31,12 +31,11 @@ router.post('/calculate', validate(signalCalcSchema), asyncHandler(async (req, r
 }));
 
 router.get('/history', asyncHandler(async (req, res) => {
-  // get the latest signal for each ticker
-  const latestSignals = await prisma.$queryRaw`
-    SELECT DISTINCT ON (ticker) ticker, signal, score, price, "createdAt"
-    FROM "SignalHistory"
-    ORDER BY ticker, "createdAt" DESC
-  `;
+  // SQLite compatible: get the latest signal for each ticker
+  const latestSignals = await prisma.signalHistory.findMany({
+    orderBy: { createdAt: 'desc' },
+    distinct: ['ticker'],
+  });
   res.json(latestSignals);
 }));
 
