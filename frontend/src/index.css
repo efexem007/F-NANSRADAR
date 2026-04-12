@@ -7,11 +7,16 @@
 /* ═══════════════════════════════════════════ */
 
 body {
-  background-color: #0d0d1a;
+  background-color: #0c0a1a;
+  background-image: 
+    radial-gradient(ellipse at top left, rgba(139, 92, 246, 0.15) 0%, transparent 40%),
+    radial-gradient(ellipse at bottom right, rgba(6, 182, 212, 0.15) 0%, transparent 40%),
+    radial-gradient(ellipse at center, rgba(236, 72, 153, 0.1) 0%, transparent 50%);
   color: #e2e8f0;
   font-family: 'Inter', 'Segoe UI', system-ui, sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  min-height: 100vh;
 }
 
 /* Glassmorphism */

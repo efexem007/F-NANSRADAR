@@ -752,19 +752,29 @@ const StockDetail = () => {
           <ChartCard icon="📈" title="Fiyat & EMA-12" badge={period.toUpperCase()}>
             <ResponsiveContainer width="100%" height={280}>
               <ComposedChart data={priceWithEma}>
-                <XAxis dataKey="date" tick={{ fill: '#64748b', fontSize: 9 }} />
-                <YAxis yAxisId="left" tick={{ fill: '#64748b', fontSize: 10 }} />
-                <YAxis yAxisId="right" orientation="right" tick={{ fill: '#64748b', fontSize: 10 }} />
-                <Tooltip content={<ChartTooltip />} />
-                <Legend wrapperStyle={{ fontSize: 11 }} />
-                <Bar yAxisId="right" dataKey="volume" fill={color} fillOpacity={0.15} name="Hacim" isAnimationActive={false} />
-                <Line yAxisId="left" type="monotone" dataKey="close" stroke={color} strokeWidth={2} dot={false} name="Fiyat" isAnimationActive={false} />
-                <Line yAxisId="left" type="monotone" dataKey="ema" stroke="#ec4899" strokeWidth={1.5} dot={false} name="EMA-12" strokeDasharray="4 2" isAnimationActive={false} />
+                <defs>
+                  <linearGradient id="priceAreaGrad" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor={color} stopOpacity={0.4} />
+                    <stop offset="95%" stopColor={color} stopOpacity={0.0} />
+                  </linearGradient>
+                  <linearGradient id="emaShadow" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="#ff00ff" stopOpacity={0.8} />
+                    <stop offset="95%" stopColor="#ff00ff" stopOpacity={0.0} />
+                  </linearGradient>
+                </defs>
+                <XAxis dataKey="date" tick={{ fill: '#64748b', fontSize: 9 }} axisLine={{ stroke: '#334155' }} tickLine={false} />
+                <YAxis yAxisId="left" tick={{ fill: '#64748b', fontSize: 10 }} axisLine={false} tickLine={false} />
+                <YAxis yAxisId="right" orientation="right" tick={{ fill: '#64748b', fontSize: 10 }} axisLine={false} tickLine={false} />
+                <Tooltip content={<ChartTooltip />} cursor={{ stroke: 'rgba(255,255,255,0.1)', strokeWidth: 1, strokeDasharray: '4 4' }} />
+                <Legend wrapperStyle={{ fontSize: 11, paddingTop: '10px' }} iconType="circle" />
+                <Bar yAxisId="right" dataKey="volume" fill="#cbd5e1" fillOpacity={0.1} name="Hacim" isAnimationActive={false} barSize={6} radius={[4,4,0,0]} />
+                <Area yAxisId="left" type="monotone" dataKey="close" stroke={color} strokeWidth={3} fill="url(#priceAreaGrad)" name="Fiyat" isAnimationActive={false} activeDot={{ r: 6, strokeWidth: 0, fill: '#fff' }} />
+                <Line yAxisId="left" type="monotone" dataKey="ema" stroke="#ff00ff" strokeWidth={2} dot={false} name="EMA-12" strokeDasharray="4 4" isAnimationActive={false} style={{ filter: 'drop-shadow(0px 0px 4px rgba(255,0,255,0.5))' }} />
                 {analysis?.indicators?.bollinger?.raw?.upper && (
-                  <ReferenceLine yAxisId="left" y={analysis.indicators.bollinger.raw.upper} stroke="#f59e0b" strokeDasharray="3 3" strokeWidth={1} label={{ value: 'BB Üst', fill: '#f59e0b', fontSize: 9 }} />
+                  <ReferenceLine yAxisId="left" y={analysis.indicators.bollinger.raw.upper} stroke="#fb923c" strokeDasharray="3 3" strokeWidth={1.5} label={{ value: 'BB Üst', fill: '#fb923c', fontSize: 10, position: 'insideTopLeft' }} />
                 )}
                 {analysis?.indicators?.bollinger?.raw?.lower && (
-                  <ReferenceLine yAxisId="left" y={analysis.indicators.bollinger.raw.lower} stroke="#10b981" strokeDasharray="3 3" strokeWidth={1} label={{ value: 'BB Alt', fill: '#10b981', fontSize: 9 }} />
+                  <ReferenceLine yAxisId="left" y={analysis.indicators.bollinger.raw.lower} stroke="#2dd4bf" strokeDasharray="3 3" strokeWidth={1.5} label={{ value: 'BB Alt', fill: '#2dd4bf', fontSize: 10, position: 'insideBottomLeft' }} />
                 )}
               </ComposedChart>
             </ResponsiveContainer>
