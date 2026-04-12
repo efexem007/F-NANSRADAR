@@ -8,6 +8,7 @@ import { softPolicy, calcMultiObjectiveReward } from './hrpOptimizer.js';
 import { analyzeCompanyFundamentals } from './fundamentalAnalysis.js';
 import { generateFullPredictions, calculateImpactAnalysis, generatePipelineSteps } from './prediction.js';
 import { savePrediction, getPredictionHistory } from './predictionHistory.js';
+import { calculateRiskLevel } from './riskLevel.js';
 import prisma from '../lib/prisma.js';
 
 /**
@@ -333,6 +334,22 @@ export async function analyzeStock(ticker, period = '3mo') {
     predictions,
     impactAnalysis,
     predictionHistory,
+    // ═══ v5.1: 5 Kademeli Risk Seviyesi ═══
+    riskLevel: calculateRiskLevel({
+      cariOran: stockRatios?.currentRatio,
+      asitTest: stockRatios?.acidTest,
+      nakitDonusum: null,
+      kaldirac: stockRatios?.leverage,
+      nfbFavok: stockRatios?.nfbToEbitda,
+      faizKoruma: null,
+      var95: riskReport.var95,
+      annualSigma: riskReport.garch?.annualSigma,
+      beta: null,
+      maxDrawdown: riskReport.maxDrawdown,
+      indicators: { rsi: rsiInterp, macd: macdInterp, trend: trendInterp, bollinger: bollingerInterp },
+      cds: macro.cds,
+      vix: macro.vix,
+    }),
     analysisTimestamp: new Date().toISOString(),
   };
 

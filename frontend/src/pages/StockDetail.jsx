@@ -7,7 +7,7 @@ import { getColor } from '../constants/colors'
 import { linearRegression, calculateEMA } from '../utils/predictions'
 import ChartCard from '../components/ChartCard'
 import ChartTooltip from '../components/ChartTooltip'
-import { ArrowLeft, RefreshCw, Activity, TrendingUp, TrendingDown, AlertTriangle, BarChart2, Zap, ChevronDown, ChevronRight, Target, Clock, Eye, History, Layers } from 'lucide-react'
+import { ArrowLeft, RefreshCw, Activity, TrendingUp, TrendingDown, AlertTriangle, BarChart2, Zap, ChevronDown, ChevronRight, Target, Clock, Eye, History, Layers, Shield, X, Info } from 'lucide-react'
 
 const SIGNAL_STYLES = {
   'GÜÇLÜ AL': 'bg-emerald-500/20 text-emerald-400 border-emerald-500/40',
@@ -53,6 +53,153 @@ function AICommentary({ text }) {
         const clean = line.replace(/\*\*/g, '').replace(/_/g, '')
         return <p key={i} className={`text-sm leading-relaxed ${isBold ? 'text-white font-semibold' : 'text-slate-400'}`}>{clean}</p>
       })}
+    </div>
+  )
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// 5 KADEMELİ RİSK SEVİYE MODAL
+// ═══════════════════════════════════════════════════════════════════════════
+
+function RiskLevelBadge({ riskLevel, onClick }) {
+  if (!riskLevel) return null
+  const { totalScore, level } = riskLevel
+  return (
+    <button
+      onClick={onClick}
+      className="flex items-center gap-1.5 px-3 py-1 rounded-full border text-sm font-bold cursor-pointer transition-all hover:scale-105 active:scale-95"
+      style={{ backgroundColor: level.bgColor, borderColor: level.borderColor, color: level.color }}
+      title="Tıklayarak detaylı risk analizini görün"
+    >
+      <span>{level.emoji}</span>
+      <span>⚠️</span>
+      <span>{totalScore}</span>
+    </button>
+  )
+}
+
+function RiskLevelModal({ riskLevel, onClose, currentPrice, ticker }) {
+  if (!riskLevel) return null
+  const { totalScore, level, components, formula } = riskLevel
+
+  const componentList = [
+    { key: 'likidite', label: 'Likidite Riski', icon: '💧', weight: '25%' },
+    { key: 'kaldirac', label: 'Kaldıraç Riski', icon: '⚖️', weight: '25%' },
+    { key: 'piyasa',   label: 'Piyasa Riski',   icon: '📉', weight: '20%' },
+    { key: 'teknik',   label: 'Teknik Risk',    icon: '📊', weight: '15%' },
+    { key: 'makro',    label: 'Makro Risk',      icon: '🌍', weight: '15%' },
+  ]
+
+  const maxBarWidth = Math.max(...componentList.map(c => components[c.key]?.score || 0), 1)
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" onClick={onClose}>
+      <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
+      <div className="relative w-full max-w-2xl max-h-[90vh] overflow-y-auto rounded-2xl bg-[#0f0f23] border border-white/10 shadow-2xl" onClick={e => e.stopPropagation()}>
+        {/* Header */}
+        <div className="sticky top-0 z-10 flex items-center justify-between p-5 border-b border-white/5 bg-[#0f0f23]/95 backdrop-blur-sm rounded-t-2xl">
+          <div className="flex items-center gap-3">
+            <div className="w-12 h-12 rounded-xl flex items-center justify-center text-2xl" style={{ backgroundColor: level.bgColor }}>
+              {level.emoji}
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <h2 className="text-lg font-bold text-white">{level.name}</h2>
+                <span className="text-xs px-2 py-0.5 rounded-full border" style={{ color: level.color, borderColor: level.borderColor, backgroundColor: level.bgColor }}>{level.subtitle}</span>
+              </div>
+              <p className="text-sm text-slate-400">{ticker} — Risk Seviyesi</p>
+            </div>
+          </div>
+          <button onClick={onClose} className="w-8 h-8 rounded-lg bg-white/5 flex items-center justify-center hover:bg-white/10 transition-colors">
+            <X size={16} className="text-slate-400" />
+          </button>
+        </div>
+
+        <div className="p-5 space-y-5">
+          {/* Big Score */}
+          <div className="text-center py-4">
+            <div className="text-6xl font-black font-mono mb-1" style={{ color: level.color }}>{totalScore}</div>
+            <div className="text-sm text-slate-500">/ 100 Risk Skoru</div>
+            <div className="mt-3 h-4 w-full max-w-md mx-auto bg-white/5 rounded-full overflow-hidden">
+              <div className="h-full rounded-full transition-all" style={{ width: `${totalScore}%`, background: `linear-gradient(90deg, #DC2626, #EA580C, #EAB308, #22C55E, #15803D)` }} />
+            </div>
+            <div className="flex justify-between max-w-md mx-auto mt-1 text-[10px] text-slate-600">
+              <span>🔴 Kritik</span><span>🟠 Kötü</span><span>🟡 Normal</span><span>🟢 İyi</span><span>🔵 Çok İyi</span>
+            </div>
+          </div>
+
+          {/* Formula Box */}
+          <div className="p-4 rounded-xl bg-white/3 border border-white/5">
+            <div className="flex items-center gap-2 mb-2">
+              <Info size={14} className="text-purple-400" />
+              <span className="text-xs font-bold text-slate-300">📐 Hesaplama Formülü</span>
+            </div>
+            <code className="text-[11px] text-purple-300 font-mono leading-relaxed block">
+              RSK = Σ(wᵢ × Rᵢ) = {formula}
+            </code>
+          </div>
+
+          {/* 5 Component Bars */}
+          <div>
+            <h3 className="text-sm font-bold text-slate-300 mb-3 flex items-center gap-2"><Shield size={14} className="text-purple-400" /> 5 Bileşen Analizi</h3>
+            <div className="space-y-3">
+              {componentList.map(comp => {
+                const data = components[comp.key]
+                if (!data) return null
+                const barColor = data.score >= 80 ? '#15803D' : data.score >= 60 ? '#22C55E' : data.score >= 40 ? '#EAB308' : data.score >= 20 ? '#EA580C' : '#DC2626'
+                return (
+                  <div key={comp.key} className="p-3 rounded-xl bg-white/2 border border-white/5">
+                    <div className="flex items-center justify-between mb-1.5">
+                      <div className="flex items-center gap-2">
+                        <span>{comp.icon}</span>
+                        <span className="text-xs font-bold text-slate-200">{comp.label}</span>
+                        <span className="text-[10px] text-slate-600 font-mono">(w={comp.weight})</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className="text-[10px] px-1.5 py-0.5 rounded border" style={{ color: barColor, borderColor: barColor + '40', backgroundColor: barColor + '15' }}>{data.status}</span>
+                        <span className="text-sm font-bold font-mono" style={{ color: barColor }}>{data.score}</span>
+                      </div>
+                    </div>
+                    <div className="h-2 w-full bg-white/5 rounded-full overflow-hidden">
+                      <div className="h-full rounded-full transition-all" style={{ width: `${data.score}%`, backgroundColor: barColor }} />
+                    </div>
+                    <p className="text-[10px] text-slate-500 mt-1.5">{data.detail}</p>
+                  </div>
+                )
+              })}
+            </div>
+          </div>
+
+          {/* Recommendation Box */}
+          <div className="p-4 rounded-xl border-l-4" style={{ borderColor: level.color, backgroundColor: level.bgColor }}>
+            <h3 className="text-sm font-bold mb-2" style={{ color: level.color }}>🎯 Öneri: {level.tavsiye}</h3>
+            <p className="text-xs text-slate-300 mb-3">{level.aciklama}</p>
+            <div className="grid grid-cols-2 gap-3 text-xs">
+              <div className="p-2 rounded-lg bg-black/20">
+                <div className="text-[10px] text-slate-500 mb-1">Stop Loss</div>
+                <div className="text-slate-200 font-medium">{level.stopLoss}</div>
+              </div>
+              <div className="p-2 rounded-lg bg-black/20">
+                <div className="text-[10px] text-slate-500 mb-1">Hedef Strateji</div>
+                <div className="text-slate-200 font-medium">{level.hedef}</div>
+              </div>
+            </div>
+          </div>
+
+          {/* Kademe Koşulları */}
+          <div className="p-4 rounded-xl bg-white/3 border border-white/5">
+            <h3 className="text-xs font-bold text-slate-400 mb-3">📋 Bu Kademenin Tipik Koşulları</h3>
+            <div className="space-y-1.5">
+              {Object.entries(level.kosullar).map(([key, val]) => (
+                <div key={key} className="flex items-start gap-2 text-[11px]">
+                  <span className="text-slate-600 w-16 shrink-0 capitalize">{key}:</span>
+                  <span className="text-slate-400">{val}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
   )
 }
@@ -410,6 +557,7 @@ const StockDetail = () => {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [period, setPeriod] = useState('3mo')
+  const [showRiskModal, setShowRiskModal] = useState(false)
   const color = getColor(ticker)
 
   const periods = [
@@ -466,6 +614,8 @@ const StockDetail = () => {
 
   return (
     <div className="space-y-6 animate-fade-in pb-10">
+      {/* Risk Level Modal */}
+      {showRiskModal && <RiskLevelModal riskLevel={analysis?.riskLevel} onClose={() => setShowRiskModal(false)} currentPrice={analysis?.currentPrice} ticker={ticker} />}
       {/* ─── Header ──────────────────────────────────────────────── */}
       <div className="flex items-center justify-between flex-wrap gap-4">
         <div className="flex items-center gap-3">
@@ -475,6 +625,7 @@ const StockDetail = () => {
           <span className="w-3 h-3 rounded-full" style={{ background: color }} />
           <h1 className="text-2xl font-bold">{ticker}</h1>
           <span className={`text-sm font-bold px-3 py-1 rounded-full border signal-pulse ${signalStyle}`}>{analysis?.signal}</span>
+          <RiskLevelBadge riskLevel={analysis?.riskLevel} onClick={() => setShowRiskModal(true)} />
         </div>
         <div className="flex items-center gap-3">
           <div className="text-right">

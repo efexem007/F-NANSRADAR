@@ -400,3 +400,31 @@ input[type="range"]::-webkit-slider-runnable-track {
 .count-up {
   animation: countUp 0.5s ease-out forwards;
 }
+
+/* Risk Level Modal */
+@keyframes modalFadeIn {
+  from { opacity: 0; transform: scale(0.95) translateY(20px); }
+  to { opacity: 1; transform: scale(1) translateY(0); }
+}
+
+.fixed .relative {
+  animation: modalFadeIn 0.25s ease-out;
+}
+
+/* Custom scrollbar for risk modal */
+.max-h-\[90vh\]::-webkit-scrollbar {
+  width: 4px;
+}
+
+.max-h-\[90vh\]::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.max-h-\[90vh\]::-webkit-scrollbar-thumb {
+  background: rgba(139, 92, 246, 0.3);
+  border-radius: 4px;
+}
+
+.max-h-\[90vh\]::-webkit-scrollbar-thumb:hover {
+  background: rgba(139, 92, 246, 0.5);
+}
