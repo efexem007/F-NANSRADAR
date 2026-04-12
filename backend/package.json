@@ -21,6 +21,9 @@
     "nodemailer": "^6.9.7",
     "prisma": "^5.7.0",
     "qrcode": "^1.5.3",
+    "redis": "^4.7.1",
+    "socket.io": "^4.8.3",
+    "winston": "^3.19.0",
     "xlsx": "^0.18.5",
     "yahoo-finance2": "^3.14.0",
     "zod": "^3.22.4"
