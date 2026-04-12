@@ -16,6 +16,7 @@ import macroRoutes from './routes/macro.js';
 import reportRoutes from './routes/report.js';
 import backtestRoutes from './routes/backtest.js';
 import scanRoutes from './routes/scan.js';
+import universalRoutes from './routes/universal.js';
 
 dotenv.config();
 
@@ -32,7 +33,7 @@ app.use(cors({
 app.use(express.json());
 app.use(rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 100 // limit each IP to 100 requests per windowMs
+  max: 500 // limit each IP to 500 requests per windowMs (scanner needs many)
 }));
 
 // Routes
@@ -46,6 +47,7 @@ app.use('/api/macro', macroRoutes);
 app.use('/api/report', reportRoutes);
 app.use('/api/backtest', backtestRoutes);
 app.use('/api/scan', scanRoutes);
+app.use('/api/universal', universalRoutes);
 
 // Health check
 app.get('/api/health', (req, res) => {

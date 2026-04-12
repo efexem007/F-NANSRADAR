@@ -1,214 +1,717 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
+import { useNavigate } from 'react-router-dom';
 import client from '../api/client';
 import toast from 'react-hot-toast';
-import { Search, Play, RefreshCw, Layers } from 'lucide-react';
+import {
+  Search, RefreshCw, Zap, TrendingUp, TrendingDown, ChevronDown, ChevronRight,
+  Star, StarOff, Eye, ArrowUpRight, ArrowDownRight, Filter, Globe, BarChart2,
+  Layers, Target, ShieldCheck, AlertTriangle, Plus, X, Clock
+} from 'lucide-react';
 import ChartCard from '../components/ChartCard';
 
-export default function Scanner() {
-  const [scanning, setScanning] = useState(false);
-  const [ticker, setTicker] = useState('');
-  const [results, setResults] = useState([]);
-  const [detailModal, setDetailModal] = useState(null);
+// ═══════════════════════════════════════════════════════════════════════════
+// MARKETS CONFIG
+// ═══════════════════════════════════════════════════════════════════════════
 
-  useEffect(() => {
-    fetchResults();
-  }, []);
+const MARKETS = [
+  { key: 'all', label: 'Tümü', icon: '🌍', color: 'from-purple-500 to-cyan-500' },
+  { key: 'bist', label: 'BIST', icon: '🏛️', color: 'from-red-500 to-orange-500' },
+  { key: 'forex', label: 'Döviz', icon: '💱', color: 'from-blue-500 to-indigo-500' },
+  { key: 'crypto', label: 'Kripto', icon: '₿', color: 'from-amber-500 to-yellow-500' },
+  { key: 'commodity', label: 'Emtia', icon: '🛢️', color: 'from-emerald-500 to-green-500' },
+  { key: 'index', label: 'Endeks', icon: '📊', color: 'from-violet-500 to-purple-500' },
+];
 
-  const fetchResults = async () => {
-    try {
-      const { data } = await client.get('/scan/results');
-      setResults(data);
-    } catch (err) {
-      toast.error('Sonuçlar alınamadı');
-    }
-  };
+const SIGNAL_COLORS = {
+  'GÜÇLÜ AL': { bg: 'bg-emerald-500/20', text: 'text-emerald-400', border: 'border-emerald-500/30' },
+  'AL': { bg: 'bg-green-500/15', text: 'text-green-400', border: 'border-green-500/30' },
+  'BEKLE': { bg: 'bg-amber-500/15', text: 'text-amber-400', border: 'border-amber-500/30' },
+  'SAT': { bg: 'bg-orange-500/15', text: 'text-orange-400', border: 'border-orange-500/30' },
+  'GÜÇLÜ SAT': { bg: 'bg-red-500/20', text: 'text-red-400', border: 'border-red-500/30' },
+};
 
-  const handleScanSingle = async () => {
-    if (!ticker) return toast.error('Hisse kodu girin');
-    setScanning(true);
-    const loadingToast = toast.loading(`${ticker.toUpperCase()} taranıyor...`);
-    try {
-      const { data } = await client.post(`/scan/stock/${ticker.toUpperCase()}`);
-      toast.success(`${ticker.toUpperCase()} tarandı: ${data.signal}`, { id: loadingToast });
-      setTicker('');
-      fetchResults();
-    } catch (err) {
-      toast.error('Tarama hatası', { id: loadingToast });
-    } finally {
-      setScanning(false);
-    }
-  };
+// ═══════════════════════════════════════════════════════════════════════════
+// HELPER COMPONENTS
+// ═══════════════════════════════════════════════════════════════════════════
 
-  const handleScanAll = async () => {
-    setScanning(true);
-    try {
-      await client.post('/scan/all');
-      toast.success('Toplu tarama arka planda başlatıldı! Kısa süre sonra sonuçlar düşmeye başlayacak.', { duration: 5000 });
-      // Poll for 3 times every 5 sec
-      let count = 0;
-      const interval = setInterval(() => {
-        fetchResults();
-        count++;
-        if (count >= 3) clearInterval(interval);
-      }, 5000);
-    } catch (err) {
-      toast.error('Hata oluştu');
-    } finally {
-      setScanning(false);
-    }
-  };
+function ScoreBar({ score, label, color = 'bg-purple-500' }) {
+  return (
+    <div>
+      <div className="flex justify-between text-[10px] mb-0.5">
+        <span className="text-slate-500">{label}</span>
+        <span className="text-slate-300 font-mono">{score}</span>
+      </div>
+      <div className="h-1 w-full bg-white/5 rounded-full overflow-hidden">
+        <div className={`h-full rounded-full ${color}`} style={{ width: `${Math.min(100, Math.max(0, score))}%` }} />
+      </div>
+    </div>
+  );
+}
+
+function ChangeBadge({ value, small = false }) {
+  if (value == null) return null;
+  const positive = value >= 0;
+  return (
+    <span className={`inline-flex items-center gap-0.5 font-mono font-bold ${small ? 'text-[10px]' : 'text-xs'} ${positive ? 'text-emerald-400' : 'text-rose-400'}`}>
+      {positive ? <ArrowUpRight size={small ? 10 : 12} /> : <ArrowDownRight size={small ? 10 : 12} />}
+      {positive ? '+' : ''}{value.toFixed(2)}%
+    </span>
+  );
+}
+
+function formatPrice(price, type) {
+  if (price == null) return '—';
+  if (type === 'crypto' && price > 100) return `$${price.toLocaleString('en-US', { maximumFractionDigits: 0 })}`;
+  if (type === 'crypto') return `$${price.toFixed(2)}`;
+  if (type === 'forex') return price.toFixed(4);
+  if (type === 'commodity') return `$${price.toFixed(2)}`;
+  return `₺${price.toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// ASSET ROW
+// ═══════════════════════════════════════════════════════════════════════════
+
+function AssetRow({ asset, onWatch, isWatched, onNavigate }) {
+  const sc = SIGNAL_COLORS[asset.signal] || SIGNAL_COLORS['BEKLE'];
 
   return (
-    <div className="space-y-6 animate-fade-in pb-10">
-      <div className="flex items-center gap-3">
-        <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-purple-500 to-cyan-500 flex items-center justify-center">
-          <Search className="w-5 h-5 text-white" />
-        </div>
-        <div>
-          <div className="text-xl font-bold text-white">AI Scanner v4.0</div>
-          <div className="text-xs text-slate-400 -mt-0.5">Teknik, Temel, Makro ve Risk Harmanlı Tam Tarama Motoru</div>
-        </div>
-      </div>
-
-      <div className="grid grid-cols-12 gap-6">
-        <div className="col-span-12 md:col-span-5">
-          <ChartCard icon="🎯" title="Tarama Kontrol Paneli" badge="CANLI">
-            <div className="flex flex-col gap-4 mt-2">
-              <p className="text-sm text-slate-400">Veritabanındaki BIST hisselerini kapsamlı bir taramadan geçirerek sinyalleri yakalayın.</p>
-              
-              <div className="flex gap-2">
-                <input
-                  type="text"
-                  placeholder="Hisse Kodu (Örn: GARAN)"
-                  value={ticker}
-                  onChange={e => setTicker(e.target.value.toUpperCase())}
-                  className="input-field flex-1 uppercase"
-                />
-                <button
-                  onClick={handleScanSingle}
-                  disabled={scanning}
-                  className="btn-primary"
-                >
-                  {scanning ? <RefreshCw className="animate-spin" size={18} /> : <Search size={18} />} Tara
-                </button>
-              </div>
-
-              <div className="h-px bg-white/5 my-2"></div>
-
-              <button
-                onClick={handleScanAll}
-                disabled={scanning}
-                className="w-full py-3 rounded-xl font-bold flex gap-2 justify-center items-center transition-all disabled:opacity-50
-                           bg-gradient-to-r from-purple-600/30 to-cyan-600/30 border border-purple-500/50 text-purple-300 hover:text-white hover:border-purple-400"
-              >
-                {scanning ? <RefreshCw className="animate-spin" size={18} /> : <Layers size={18} />} 
-                Tüm Veritabanını Tara (Toplu Analiz)
-              </button>
-            </div>
-          </ChartCard>
-          
-          <div className="mt-6 glass-card p-5">
-            <h3 className="text-white font-semibold mb-3 flex items-center gap-2"><Play className="text-cyan-400 w-4 h-4"/> Otomatik Zamanlanmış Taramalar</h3>
-            <p className="text-xs text-slate-400 mb-2">Sistem her gün aşağıdaki saatlerde arka planda tüm hisseleri otomatik olarak tarar:</p>
-            <ul className="text-sm text-slate-300 space-y-1 ml-4 list-disc">
-              <li>09:00 (Piyasa Açılış Öncesi)</li>
-              <li>13:00 (Öğle Arası Kontrolü)</li>
-              <li>18:00 (Gün Sonu Kapanış Özeti)</li>
-            </ul>
+    <tr
+      className="group cursor-pointer hover:bg-white/3 transition-colors border-b border-white/3"
+      onClick={() => onNavigate(asset)}
+    >
+      {/* Symbol + Name */}
+      <td className="py-2.5 px-3">
+        <div className="flex items-center gap-2">
+          <span className="text-sm">{asset.flag}</span>
+          <div>
+            <div className="text-xs font-bold text-white">{asset.symbol.replace('.IS','').replace('=X','').replace('-USD','')}</div>
+            <div className="text-[10px] text-slate-500 truncate max-w-[120px]">{asset.name}</div>
           </div>
         </div>
+      </td>
 
-        <div className="col-span-12 md:col-span-7">
-          <ChartCard icon="📊" title="Son Tarama Sonuçları">
-            <div className="overflow-x-auto max-h-[500px]">
-              <table className="w-full data-table">
-                <thead className="sticky top-0 bg-[#12122a] z-10 shadow-md">
-                  <tr>
-                    <th>Hisse</th>
-                    <th>Sanal Zeka Sinyali</th>
-                    <th className="text-center">Skor</th>
-                    <th className="text-right">Son Fiyat</th>
-                    <th className="text-right">Tarama Saati</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {results.length === 0 ? (
-                    <tr>
-                      <td colSpan="5" className="text-center py-8 text-slate-500">Henüz taranmış hisse bulunmuyor.</td>
-                    </tr>
-                  ) : (
-                    results.map(r => (
-                      <tr key={r.id} onClick={() => setDetailModal(r)} className="cursor-pointer hover:bg-white/5 transition-colors">
-                        <td className="font-bold text-slate-200">{r.ticker}</td>
-                        <td className={`font-semibold 
-                          ${r.signal.includes('GÜÇLÜ AL') ? 'text-emerald-400' : 
-                            r.signal.includes('AL') ? 'text-green-400' : 
-                            r.signal.includes('SAT') ? 'text-red-400' : 
-                            'text-amber-400'}`}>
-                          {r.signal}
-                        </td>
-                        <td className="text-center">
-                          <span className={`px-2 py-0.5 rounded text-xs
-                            ${r.score >= 70 ? 'bg-emerald-500/20 text-emerald-400' :
-                              r.score <= 30 ? 'bg-red-500/20 text-red-400' :
-                              'bg-white/10 text-slate-300'}`}>
-                            {r.score}
-                          </span>
-                        </td>
-                        <td className="text-right font-mono">₺{(r.price || 0).toFixed(2)}</td>
-                        <td className="text-right text-xs text-slate-500">{new Date(r.createdAt).toLocaleTimeString('tr-TR')}</td>
-                      </tr>
-                    ))
-                  )}
-                </tbody>
-              </table>
+      {/* Price */}
+      <td className="py-2.5 px-2 text-right">
+        <div className="text-xs font-mono font-bold text-white">{formatPrice(asset.currentPrice, asset.type)}</div>
+      </td>
+
+      {/* Change 1D */}
+      <td className="py-2.5 px-2 text-right">
+        <ChangeBadge value={asset.change1d} small />
+      </td>
+
+      {/* Change 7D */}
+      <td className="py-2.5 px-2 text-right hidden md:table-cell">
+        <ChangeBadge value={asset.change7d} small />
+      </td>
+
+      {/* Signal */}
+      <td className="py-2.5 px-2 text-center">
+        <span className={`inline-block text-[10px] font-bold px-2 py-0.5 rounded-md border ${sc.bg} ${sc.text} ${sc.border}`}>
+          {asset.signal}
+        </span>
+      </td>
+
+      {/* Score */}
+      <td className="py-2.5 px-2 text-center hidden lg:table-cell">
+        <div className="flex items-center justify-center gap-1">
+          <div className="w-10 h-1.5 bg-white/5 rounded-full overflow-hidden">
+            <div
+              className="h-full rounded-full"
+              style={{
+                width: `${asset.opportunityScore}%`,
+                background: asset.opportunityScore >= 70 ? '#22c55e' : asset.opportunityScore >= 50 ? '#eab308' : '#ef4444'
+              }}
+            />
+          </div>
+          <span className="text-xs font-mono text-slate-300 w-6">{asset.opportunityScore}</span>
+        </div>
+      </td>
+
+      {/* RSI */}
+      <td className="py-2.5 px-2 text-center hidden xl:table-cell">
+        <span className={`text-[10px] font-mono ${
+          asset.indicators?.rsi < 30 ? 'text-emerald-400' :
+          asset.indicators?.rsi > 70 ? 'text-rose-400' : 'text-slate-400'
+        }`}>
+          {asset.indicators?.rsi ?? '—'}
+        </span>
+      </td>
+
+      {/* Volatility */}
+      <td className="py-2.5 px-2 text-center hidden xl:table-cell">
+        <span className="text-[10px] font-mono text-slate-400">{asset.volatility ? `%${asset.volatility}` : '—'}</span>
+      </td>
+
+      {/* Watch */}
+      <td className="py-2.5 px-2 text-center">
+        <button
+          onClick={(e) => { e.stopPropagation(); onWatch(asset); }}
+          className="p-1 rounded-md hover:bg-white/5 transition-colors"
+        >
+          {isWatched ? <Star size={14} className="text-amber-400 fill-amber-400" /> : <StarOff size={14} className="text-slate-600 hover:text-amber-400" />}
+        </button>
+      </td>
+    </tr>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// AI PICKS CARD
+// ═══════════════════════════════════════════════════════════════════════════
+
+function AIPicksCard({ picks, onNavigate }) {
+  const [category, setCategory] = useState('topOverall');
+  if (!picks) return null;
+
+  const categories = [
+    { key: 'topOverall', label: '🏆 Top 5', items: picks.topOverall },
+    { key: 'momentum', label: '🚀 Momentum', items: picks.momentum },
+    { key: 'oversold', label: '💎 Aşırı Satım', items: picks.oversold },
+    { key: 'lowRisk', label: '🛡️ Düşük Risk', items: picks.lowRisk },
+  ];
+
+  const active = categories.find(c => c.key === category) || categories[0];
+
+  return (
+    <ChartCard icon="🤖" title="AI Seçimleri" badge="YAPAY ZEKA" badgeColor="ai">
+      <div className="flex gap-1.5 mb-3 flex-wrap">
+        {categories.map(cat => (
+          <button
+            key={cat.key}
+            onClick={() => setCategory(cat.key)}
+            className={`text-[10px] px-2.5 py-1 rounded-lg transition-all font-semibold ${
+              category === cat.key
+                ? 'bg-purple-500/20 text-purple-300 border border-purple-500/30'
+                : 'text-slate-500 hover:text-slate-300 border border-transparent'
+            }`}
+          >
+            {cat.label} ({cat.items?.length || 0})
+          </button>
+        ))}
+      </div>
+
+      <div className="space-y-1.5">
+        {(active.items || []).slice(0, 5).map((item, idx) => (
+          <div
+            key={idx}
+            className="flex items-center justify-between p-2 rounded-lg hover:bg-white/3 cursor-pointer transition-colors"
+            onClick={() => onNavigate(item)}
+          >
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-bold text-slate-400 w-4">#{idx + 1}</span>
+              <span className="text-sm">{item.flag}</span>
+              <div>
+                <div className="text-xs font-bold text-white">{item.symbol.replace('.IS','').replace('=X','')}</div>
+                <div className="text-[10px] text-slate-500">{item.name}</div>
+              </div>
             </div>
-          </ChartCard>
+            <div className="flex items-center gap-3">
+              <ChangeBadge value={item.change7d} small />
+              <span className="text-xs font-mono font-bold text-purple-300">{item.opportunityScore}</span>
+            </div>
+          </div>
+        ))}
+        {(!active.items || active.items.length === 0) && (
+          <div className="text-center py-4 text-xs text-slate-500">Bu kategoride henüz sonuç yok.</div>
+        )}
+      </div>
+    </ChartCard>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// WATCHLIST PANEL
+// ═══════════════════════════════════════════════════════════════════════════
+
+function WatchlistPanel({ watchlist, loading, onRemove, onNavigate }) {
+  if (loading) return <div className="text-center py-8 text-slate-500 text-xs">Yükleniyor...</div>;
+
+  return (
+    <ChartCard icon="⭐" title="Takip Listen" badge={`${watchlist.length} VARLIK`} badgeColor="amber">
+      {watchlist.length === 0 ? (
+        <div className="text-center py-6">
+          <Star size={32} className="text-slate-700 mx-auto mb-2" />
+          <div className="text-sm text-slate-500">Henüz varlık eklenmemiş</div>
+          <div className="text-[10px] text-slate-600 mt-1">Tarama sonuçlarından ⭐ ile ekleyebilirsin</div>
+        </div>
+      ) : (
+        <div className="space-y-1.5 max-h-[400px] overflow-y-auto">
+          {watchlist.map((item, idx) => (
+            <div key={idx} className="flex items-center justify-between p-2 rounded-lg bg-white/2 hover:bg-white/4 transition-colors">
+              <div className="flex items-center gap-2 cursor-pointer flex-1" onClick={() => onNavigate(item)}>
+                <div>
+                  <div className="text-xs font-bold text-white flex items-center gap-1.5">
+                    {item.symbol.replace('.IS','').replace('=X','')}
+                    {item.live && (
+                      <span className={`text-[10px] font-mono ${item.live.change1d >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
+                        {item.live.change1d >= 0 ? '+' : ''}{item.live.change1d}%
+                      </span>
+                    )}
+                  </div>
+                  <div className="text-[10px] text-slate-500">{item.name}</div>
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                {item.live && (
+                  <span className="text-xs font-mono text-slate-300">{item.live.currentPrice?.toFixed(2)}</span>
+                )}
+                {item.live?.signal && (
+                  <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded ${SIGNAL_COLORS[item.live.signal]?.bg || ''} ${SIGNAL_COLORS[item.live.signal]?.text || ''}`}>
+                    {item.live.signal}
+                  </span>
+                )}
+                <button onClick={(e) => { e.stopPropagation(); onRemove(item.symbol); }} className="p-1 hover:bg-red-500/10 rounded">
+                  <X size={12} className="text-slate-600 hover:text-rose-400" />
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </ChartCard>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// MARKET SUMMARY BAR
+// ═══════════════════════════════════════════════════════════════════════════
+
+function MarketSummaryBar({ results }) {
+  if (!results?.length) return null;
+
+  const highlights = [
+    results.find(r => r.symbol === 'XU100.IS'),
+    results.find(r => r.symbol === 'USDTRY=X'),
+    results.find(r => r.symbol === 'BTC-USD'),
+    results.find(r => r.symbol === 'GC=F'),
+    results.find(r => r.symbol === 'CL=F'),
+  ].filter(Boolean);
+
+  return (
+    <div className="flex gap-3 overflow-x-auto pb-1 scrollbar-hide">
+      {highlights.map(item => (
+        <div key={item.symbol} className="flex-shrink-0 glass-card px-3 py-2 flex items-center gap-2 min-w-[140px]">
+          <span className="text-sm">{item.flag}</span>
+          <div>
+            <div className="text-[10px] text-slate-500">{item.name}</div>
+            <div className="flex items-center gap-1.5">
+              <span className="text-xs font-mono font-bold text-white">{formatPrice(item.currentPrice, item.type)}</span>
+              <ChangeBadge value={item.change1d} small />
+            </div>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// MAIN SCANNER PAGE
+// ═══════════════════════════════════════════════════════════════════════════
+
+export default function Scanner() {
+  const navigate = useNavigate();
+  const [activeMarket, setActiveMarket] = useState('all');
+  const [scanning, setScanning] = useState(false);
+  const [scanResults, setScanResults] = useState(null);
+  const [aiPicks, setAiPicks] = useState(null);
+  const [watchlist, setWatchlist] = useState([]);
+  const [wlLoading, setWlLoading] = useState(false);
+  const [sortBy, setSortBy] = useState('opportunityScore');
+  const [sortDir, setSortDir] = useState('desc');
+  const [searchQuery, setSearchQuery] = useState('');
+  const [quickTicker, setQuickTicker] = useState('');
+  const [view, setView] = useState('scanner');
+
+  // Load watchlist on mount
+  useEffect(() => {
+    loadWatchlist();
+  }, []);
+
+  const loadWatchlist = async () => {
+    setWlLoading(true);
+    try {
+      const { data } = await client.get('/universal/watchlist');
+      setWatchlist(data);
+    } catch { /* ignore */ }
+    setWlLoading(false);
+  };
+
+  // Scan market
+  const handleScan = async (market = activeMarket) => {
+    setScanning(true);
+    const loadingToast = toast.loading(`${market === 'all' ? 'Tüm piyasalar' : market.toUpperCase()} taranıyor...`);
+    try {
+      const { data } = await client.get(`/universal/scan?market=${market}`);
+      setScanResults(data);
+      setAiPicks(generateLocalAIPicks(data));
+      toast.success(`${data.totalScanned} varlık tarandı, ${data.totalPassed} sonuç!`, { id: loadingToast });
+    } catch (err) {
+      toast.error(`Tarama hatası: ${err.message}`, { id: loadingToast });
+    }
+    setScanning(false);
+  };
+
+  // Quick single scan
+  const handleQuickScan = async () => {
+    if (!quickTicker) return;
+    setScanning(true);
+    toast.loading(`${quickTicker} taranıyor...`);
+    try {
+      const market = quickTicker.includes('=') ? 'forex' : quickTicker.includes('-') ? 'crypto' : 'bist';
+      const { data } = await client.get(`/universal/scan?market=${market}`);
+      setScanResults(data);
+      toast.dismiss();
+      toast.success(`Tarama tamamlandı`);
+    } catch (err) {
+      toast.dismiss();
+      toast.error('Hata');
+    }
+    setScanning(false);
+    setQuickTicker('');
+  };
+
+  // Generate AI picks locally from scan results
+  function generateLocalAIPicks(data) {
+    if (!data?.results) return null;
+    const items = data.results;
+    return {
+      topOverall: items.slice(0, 5),
+      topBist: items.filter(i => i.type === 'bist').slice(0, 5),
+      topCrypto: items.filter(i => i.type === 'crypto').slice(0, 3),
+      topForex: items.filter(i => i.type === 'forex').slice(0, 3),
+      momentum: items.filter(i => i.change7d > 3 && i.relativeVolume > 1.2).slice(0, 5),
+      oversold: items.filter(i => i.indicators?.rsi != null && i.indicators.rsi < 35).slice(0, 5),
+      lowRisk: items.filter(i => i.riskScore > 70).sort((a,b) => b.riskScore - a.riskScore).slice(0, 5),
+    };
+  }
+
+  // Watchlist toggle
+  const toggleWatchlist = async (asset) => {
+    const isWatched = watchlist.some(w => w.symbol === asset.symbol);
+    if (isWatched) {
+      try {
+        await client.delete(`/universal/watchlist/${encodeURIComponent(asset.symbol)}`);
+        setWatchlist(prev => prev.filter(w => w.symbol !== asset.symbol));
+        toast.success(`${asset.symbol} listeden çıkarıldı`);
+      } catch { toast.error('Hata'); }
+    } else {
+      try {
+        await client.post('/universal/watchlist', {
+          symbol: asset.symbol,
+          name: asset.name,
+          assetType: asset.type,
+        });
+        setWatchlist(prev => [...prev, { symbol: asset.symbol, name: asset.name, assetType: asset.type, live: asset }]);
+        toast.success(`⭐ ${asset.symbol} listeye eklendi`);
+      } catch { toast.error('Hata'); }
+    }
+  };
+
+  const removeFromWatchlist = async (symbol) => {
+    try {
+      await client.delete(`/universal/watchlist/${encodeURIComponent(symbol)}`);
+      setWatchlist(prev => prev.filter(w => w.symbol !== symbol));
+      toast.success('Çıkarıldı');
+    } catch { toast.error('Hata'); }
+  };
+
+  // Navigate to asset detail
+  const navigateToAsset = (asset) => {
+    if (asset.type === 'bist' || asset.assetType === 'bist') {
+      navigate(`/stock/${asset.symbol.replace('.IS', '')}`);
+    } else {
+      navigate(`/stock/${encodeURIComponent(asset.symbol)}`);
+    }
+  };
+
+  // Filtered and sorted results
+  const displayResults = useMemo(() => {
+    if (!scanResults?.results) return [];
+    let items = [...scanResults.results];
+
+    // Market filter
+    if (activeMarket !== 'all') {
+      items = items.filter(i => i.type === activeMarket);
+    }
+
+    // Search filter
+    if (searchQuery) {
+      const q = searchQuery.toLowerCase();
+      items = items.filter(i =>
+        i.symbol.toLowerCase().includes(q) ||
+        i.name.toLowerCase().includes(q)
+      );
+    }
+
+    // Sort
+    items.sort((a, b) => {
+      const valA = a[sortBy] ?? 0;
+      const valB = b[sortBy] ?? 0;
+      return sortDir === 'desc' ? valB - valA : valA - valB;
+    });
+
+    return items;
+  }, [scanResults, activeMarket, searchQuery, sortBy, sortDir]);
+
+  const watchedSymbols = new Set(watchlist.map(w => w.symbol));
+
+  return (
+    <div className="space-y-5 animate-fade-in pb-10">
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-purple-500 to-cyan-500 flex items-center justify-center">
+            <Globe className="w-5 h-5 text-white" />
+          </div>
+          <div>
+            <div className="text-xl font-bold text-white">Universal Scanner v6.0</div>
+            <div className="text-xs text-slate-400 -mt-0.5">Hisse • Döviz • Kripto • Emtia • Endeks — Tek Platform</div>
+          </div>
+        </div>
+        <div className="flex gap-2">
+          <button
+            onClick={() => setView('scanner')}
+            className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${view === 'scanner' ? 'bg-purple-500/20 text-purple-300 border border-purple-500/30' : 'text-slate-500 hover:text-slate-300'}`}
+          >
+            <Search size={14} className="inline mr-1" /> Tarama
+          </button>
+          <button
+            onClick={() => setView('watchlist')}
+            className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${view === 'watchlist' ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30' : 'text-slate-500 hover:text-slate-300'}`}
+          >
+            <Star size={14} className="inline mr-1" /> Takip ({watchlist.length})
+          </button>
         </div>
       </div>
 
-      {/* Algoritma Detay Modalı */}
-      {detailModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-fade-in">
-          <div className="glass-card w-full max-w-md p-6 relative">
-            <button onClick={() => setDetailModal(null)} className="absolute top-4 right-4 text-slate-400 hover:text-white transition-colors">✕</button>
-            <h2 className="text-xl font-bold bg-gradient-to-r from-purple-400 to-cyan-400 bg-clip-text text-transparent mb-1">{detailModal.ticker} Algoritma Röntkeni</h2>
-            <div className={`text-sm font-semibold mb-5 
-              ${detailModal.signal.includes('GÜÇLÜ AL') ? 'text-emerald-400' : 
-                detailModal.signal.includes('AL') ? 'text-green-400' : 
-                detailModal.signal.includes('SAT') ? 'text-red-400' : 
-                'text-amber-400'}`}>
-              Nihai Karar: {detailModal.signal} (Toplam Skor: {detailModal.score})
+      {/* Market Summary Bar */}
+      {scanResults && <MarketSummaryBar results={scanResults.results} />}
+
+      {view === 'scanner' ? (
+        <>
+          {/* Market Tabs + Scan Button */}
+          <div className="flex items-center justify-between flex-wrap gap-3">
+            <div className="flex gap-1.5 flex-wrap">
+              {MARKETS.map(m => (
+                <button
+                  key={m.key}
+                  onClick={() => setActiveMarket(m.key)}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold transition-all ${
+                    activeMarket === m.key
+                      ? `bg-gradient-to-r ${m.color} text-white shadow-lg`
+                      : 'bg-white/3 text-slate-400 hover:bg-white/5 hover:text-white'
+                  }`}
+                >
+                  <span>{m.icon}</span> {m.label}
+                </button>
+              ))}
             </div>
-            
-            <div className="space-y-4">
-              {(() => {
-                let d = null;
-                try { d = JSON.parse(detailModal.details); } catch(e) {}
-                if (!d) return <div className="text-slate-400 text-sm italic border border-white/10 p-3 rounded-lg">Bu sinyal için geçmiş metrik detayı bulunmuyor.</div>;
-                
-                return [
-                  { label: 'Teknik Analiz (MACD, RSI, BB)', val: d.techScore, color: 'bg-purple-500', weight: '35%' },
-                  { label: 'Temel Analiz (Rasyolar)', val: d.fundScore, color: 'bg-cyan-500', weight: '25%' },
-                  { label: 'Makro Ekonomi (CDS, VIX)', val: d.macroScoreVal, color: 'bg-blue-500', weight: '20%' },
-                  { label: 'Sentiment (Haber Duygusu)', val: d.haberPuan, color: 'bg-emerald-500', weight: '10%' },
-                  { label: 'Risk ve Volatilite Kalkanı', val: d.riskScore, color: 'bg-amber-500', weight: '10%' },
-                ].map(item => (
-                  <div key={item.label}>
-                    <div className="flex justify-between text-xs mb-1.5">
-                      <span className="text-slate-300 flex items-center gap-1.5">
-                        <span className={`w-2 h-2 rounded-full ${item.color}`}></span>
-                        {item.label} <span className="text-slate-500 text-[10px] ml-1">(Ağırlık: {item.weight})</span>
-                      </span>
-                      <span className="text-white font-bold">{item.val} / 100</span>
+
+            <button
+              onClick={() => handleScan()}
+              disabled={scanning}
+              className="flex items-center gap-2 px-4 py-2 rounded-xl font-bold text-sm transition-all
+                         bg-gradient-to-r from-purple-600/40 to-cyan-600/40 border border-purple-500/50
+                         text-purple-200 hover:text-white hover:border-purple-400 disabled:opacity-50"
+            >
+              {scanning ? <RefreshCw size={16} className="animate-spin" /> : <Zap size={16} />}
+              {scanning ? 'Taranıyor...' : 'Piyasayı Tara'}
+            </button>
+          </div>
+
+          {/* Quick Scan + Search */}
+          <div className="flex gap-3">
+            <div className="flex-1 relative">
+              <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" />
+              <input
+                type="text"
+                placeholder="Sonuçlarda Ara (THYAO, Bitcoin, Altın...)"
+                value={searchQuery}
+                onChange={e => setSearchQuery(e.target.value)}
+                className="w-full pl-8 pr-3 py-2 rounded-xl bg-white/3 border border-white/5 text-sm text-white placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-purple-500/50"
+              />
+            </div>
+            <div className="flex gap-1.5">
+              <input
+                type="text"
+                placeholder="Sembol Ekle (BTC-USD)"
+                value={quickTicker}
+                onChange={e => setQuickTicker(e.target.value.toUpperCase())}
+                onKeyDown={e => e.key === 'Enter' && handleQuickScan()}
+                className="w-44 px-3 py-2 rounded-xl bg-white/3 border border-white/5 text-sm text-white placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-cyan-500/50"
+              />
+              <button onClick={handleQuickScan} disabled={scanning} className="px-3 py-2 rounded-xl bg-cyan-500/15 border border-cyan-500/30 text-cyan-300 text-xs font-bold hover:bg-cyan-500/25 disabled:opacity-50">
+                <Plus size={14} />
+              </button>
+            </div>
+          </div>
+
+          {/* Main Content Grid */}
+          <div className="grid grid-cols-12 gap-5">
+            {/* Results Table */}
+            <div className="col-span-12 lg:col-span-8">
+              <ChartCard icon="📋" title="Tarama Sonuçları" badge={displayResults.length > 0 ? `${displayResults.length} VARLIK` : 'BOŞ'}>
+                {!scanResults ? (
+                  <div className="text-center py-12">
+                    <Globe size={48} className="text-slate-700 mx-auto mb-3" />
+                    <div className="text-sm text-slate-400 mb-2">Henüz tarama yapılmadı</div>
+                    <div className="text-xs text-slate-600 mb-4">Yukarıdaki "Piyasayı Tara" butonuna tıklayarak başlayın</div>
+                    <button onClick={() => handleScan()} className="px-4 py-2 rounded-xl bg-gradient-to-r from-purple-600/30 to-cyan-600/30 border border-purple-500/50 text-purple-300 text-sm font-bold hover:text-white">
+                      <Zap size={14} className="inline mr-1" /> Şimdi Tara
+                    </button>
+                  </div>
+                ) : displayResults.length === 0 ? (
+                  <div className="text-center py-8 text-slate-500 text-sm">
+                    Filtrelere uygun sonuç bulunamadı.
+                  </div>
+                ) : (
+                  <div className="overflow-x-auto max-h-[600px]">
+                    <table className="w-full">
+                      <thead className="sticky top-0 bg-[#12122a]/95 backdrop-blur-sm z-10">
+                        <tr className="text-[10px] text-slate-500 uppercase tracking-wider">
+                          <th className="text-left py-2 px-3 cursor-pointer hover:text-slate-300" onClick={() => { setSortBy('symbol'); setSortDir(d => d === 'desc' ? 'asc' : 'desc'); }}>Varlık</th>
+                          <th className="text-right py-2 px-2 cursor-pointer hover:text-slate-300" onClick={() => { setSortBy('currentPrice'); setSortDir(d => d === 'desc' ? 'asc' : 'desc'); }}>Fiyat</th>
+                          <th className="text-right py-2 px-2 cursor-pointer hover:text-slate-300" onClick={() => { setSortBy('change1d'); setSortDir(d => d === 'desc' ? 'asc' : 'desc'); }}>1G %</th>
+                          <th className="text-right py-2 px-2 hidden md:table-cell cursor-pointer hover:text-slate-300" onClick={() => { setSortBy('change7d'); setSortDir(d => d === 'desc' ? 'asc' : 'desc'); }}>7G %</th>
+                          <th className="text-center py-2 px-2">Sinyal</th>
+                          <th className="text-center py-2 px-2 hidden lg:table-cell cursor-pointer hover:text-slate-300" onClick={() => { setSortBy('opportunityScore'); setSortDir(d => d === 'desc' ? 'asc' : 'desc'); }}>Skor</th>
+                          <th className="text-center py-2 px-2 hidden xl:table-cell cursor-pointer hover:text-slate-300" onClick={() => { setSortBy('indicators.rsi'); setSortDir(d => d === 'desc' ? 'asc' : 'desc'); }}>RSI</th>
+                          <th className="text-center py-2 px-2 hidden xl:table-cell">Vol.</th>
+                          <th className="text-center py-2 px-2 w-8">⭐</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {displayResults.map(asset => (
+                          <AssetRow
+                            key={asset.symbol}
+                            asset={asset}
+                            isWatched={watchedSymbols.has(asset.symbol)}
+                            onWatch={toggleWatchlist}
+                            onNavigate={navigateToAsset}
+                          />
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+
+                {/* Stats Footer */}
+                {scanResults && (
+                  <div className="mt-3 pt-3 border-t border-white/5 flex items-center justify-between text-[10px] text-slate-500">
+                    <div className="flex gap-4">
+                      <span>Toplam: {scanResults.totalScanned}</span>
+                      <span>Başarılı: {scanResults.totalPassed}</span>
+                      <span>Hata: {scanResults.totalErrors}</span>
                     </div>
-                    <div className="h-2 w-full bg-[#0d0d1a] border border-white/5 rounded-full overflow-hidden">
-                      <div className={`h-full ${item.color} rounded-full`} style={{ width: `${Math.max(0, Math.min(100, item.val))}%` }}></div>
+                    <div className="flex items-center gap-1">
+                      <Clock size={10} /> {new Date(scanResults.scanTime).toLocaleTimeString('tr-TR')}
                     </div>
                   </div>
-                ))
-              })()}
+                )}
+              </ChartCard>
             </div>
+
+            {/* Sidebar: AI Picks + Watchlist */}
+            <div className="col-span-12 lg:col-span-4 space-y-5">
+              <AIPicksCard picks={aiPicks} onNavigate={navigateToAsset} />
+              <WatchlistPanel
+                watchlist={watchlist}
+                loading={wlLoading}
+                onRemove={removeFromWatchlist}
+                onNavigate={navigateToAsset}
+              />
+
+              {/* Scan Stats */}
+              {scanResults && (
+                <div className="glass-card p-4">
+                  <h3 className="text-xs font-bold text-white mb-3 flex items-center gap-2"><BarChart2 size={14} className="text-cyan-400" /> Piyasa Dağılımı</h3>
+                  {MARKETS.filter(m => m.key !== 'all').map(m => {
+                    const count = scanResults.results?.filter(r => r.type === m.key).length || 0;
+                    const buyCount = scanResults.results?.filter(r => r.type === m.key && (r.signal === 'AL' || r.signal === 'GÜÇLÜ AL')).length || 0;
+                    return (
+                      <div key={m.key} className="flex items-center justify-between py-1.5 border-b border-white/3 last:border-b-0">
+                        <div className="flex items-center gap-2 text-xs text-slate-300">
+                          <span>{m.icon}</span>{m.label}
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <span className="text-[10px] text-emerald-400 font-mono">{buyCount} AL</span>
+                          <span className="text-[10px] text-slate-500">/ {count}</span>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          </div>
+        </>
+      ) : (
+        /* Watchlist Detailed View */
+        <div className="grid grid-cols-12 gap-5">
+          <div className="col-span-12 lg:col-span-8">
+            <ChartCard icon="⭐" title="Takip Listen (Detaylı)" badge={`${watchlist.length} VARLIK`} badgeColor="amber">
+              {wlLoading ? (
+                <div className="text-center py-8 text-slate-500">Yükleniyor...</div>
+              ) : watchlist.length === 0 ? (
+                <div className="text-center py-12">
+                  <Star size={48} className="text-slate-700 mx-auto mb-3" />
+                  <div className="text-sm text-slate-400 mb-2">Takip listen boş</div>
+                  <div className="text-xs text-slate-600">Tarama sekmesinden varlık ekleyebilirsin</div>
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  {watchlist.map((item, idx) => (
+                    <div key={idx} className="p-3 rounded-xl bg-white/2 border border-white/5 hover:bg-white/4 transition-colors">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-3 cursor-pointer" onClick={() => navigateToAsset(item)}>
+                          <Star size={14} className="text-amber-400 fill-amber-400" />
+                          <div>
+                            <div className="text-sm font-bold text-white">{item.symbol.replace('.IS','').replace('=X','')}</div>
+                            <div className="text-[10px] text-slate-500">{item.name} • {item.assetType?.toUpperCase()}</div>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-3">
+                          {item.live && (
+                            <>
+                              <div className="text-right">
+                                <div className="text-sm font-mono font-bold text-white">{item.live.currentPrice?.toFixed(2)}</div>
+                                <ChangeBadge value={item.live.change1d} small />
+                              </div>
+                              {item.live.signal && (
+                                <span className={`text-[10px] font-bold px-2 py-1 rounded-lg ${SIGNAL_COLORS[item.live.signal]?.bg || ''} ${SIGNAL_COLORS[item.live.signal]?.text || ''}`}>
+                                  {item.live.signal}
+                                </span>
+                              )}
+                            </>
+                          )}
+                          <button onClick={() => removeFromWatchlist(item.symbol)} className="p-1.5 hover:bg-red-500/10 rounded-lg transition-colors">
+                            <X size={14} className="text-slate-600 hover:text-rose-400" />
+                          </button>
+                        </div>
+                      </div>
+                      {/* Extra info row */}
+                      {item.live && (
+                        <div className="mt-2 pt-2 border-t border-white/5 grid grid-cols-4 gap-2 text-[10px]">
+                          <div><span className="text-slate-500">RSI:</span> <span className="text-slate-300 font-mono">{item.live.rsi ?? '—'}</span></div>
+                          <div><span className="text-slate-500">7G:</span> <ChangeBadge value={item.live.change7d} small /></div>
+                          <div><span className="text-slate-500">Skor:</span> <span className="text-slate-300 font-mono">{item.live.opportunityScore}</span></div>
+                          <div><span className="text-slate-500">Hedef:</span> <span className="text-slate-300 font-mono">{item.targetPrice ? `${item.targetPrice}` : '—'}</span></div>
+                        </div>
+                      )}
+                      {item.notes && (
+                        <div className="mt-1.5 text-[10px] text-slate-500 italic">📝 {item.notes}</div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </ChartCard>
+          </div>
+          <div className="col-span-12 lg:col-span-4">
+            <AIPicksCard picks={aiPicks} onNavigate={navigateToAsset} />
           </div>
         </div>
       )}
