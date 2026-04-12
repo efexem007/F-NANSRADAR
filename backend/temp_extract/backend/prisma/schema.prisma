@@ -1,0 +1,215 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// Kullanıcı modeli
+model User {
+  id            String    @id @default(uuid())
+  email         String    @unique
+  password      String
+  name          String?
+  role          String    @default("user") // user, admin
+  isPremium     Boolean   @default(false)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  
+  portfolios    Portfolio[]
+  alerts        PriceAlert[]
+  
+  @@map("users")
+}
+
+// Hisse senedi modeli
+model Stock {
+  id            String    @id @default(uuid())
+  symbol        String    @unique
+  name          String
+  sector        String?
+  industry      String?
+  marketCap     BigInt?
+  isPopular     Boolean   @default(false)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  
+  prices        StockPrice[]
+  holdings      Holding[]
+  transactions  Transaction[]
+  company       CompanyInfo?
+  
+  @@map("stocks")
+}
+
+// Hisse senedi fiyatları
+model StockPrice {
+  id            String    @id @default(uuid())
+  stockId       String
+  date          DateTime
+  open          Float
+  high          Float
+  low           Float
+  close         Float
+  volume        BigInt
+  change        Float?
+  changePercent Float?
+  
+  stock         Stock     @relation(fields: [stockId], references: [id])
+  
+  @@unique([stockId, date])
+  @@index([stockId, date])
+  @@map("stock_prices")
+}
+
+// Şirket bilgileri
+model CompanyInfo {
+  id            String    @id @default(uuid())
+  stockId       String    @unique
+  description   String?
+  website       String?
+  employees     Int?
+  ceo           String?
+  headquarters  String?
+  founded       Int?
+  
+  stock         Stock     @relation(fields: [stockId], references: [id])
+  
+  @@map("company_info")
+}
+
+// Portföy modeli
+model Portfolio {
+  id            String    @id @default(uuid())
+  userId        String
+  name          String
+  description   String?
+  currency      String    @default("TRY")
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  
+  user          User      @relation(fields: [userId], references: [id])
+  holdings      Holding[]
+  transactions  Transaction[]
+  
+  @@map("portfolios")
+}
+
+// Holding modeli
+model Holding {
+  id            String    @id @default(uuid())
+  portfolioId   String
+  stockId       String
+  quantity      Float
+  avgPrice      Float
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  
+  portfolio     Portfolio @relation(fields: [portfolioId], references: [id])
+  stock         Stock     @relation(fields: [stockId], references: [id])
+  
+  @@unique([portfolioId, stockId])
+  @@map("holdings")
+}
+
+// İşlem kayıtları
+model Transaction {
+  id            String    @id @default(uuid())
+  portfolioId   String
+  stockId       String
+  type          String    // BUY, SELL
+  quantity      Float
+  price         Float
+  total         Float
+  date          DateTime
+  createdAt     DateTime  @default(now())
+  
+  portfolio     Portfolio @relation(fields: [portfolioId], references: [id])
+  stock         Stock     @relation(fields: [stockId], references: [id])
+  
+  @@map("transactions")
+}
+
+// Fiyat alarmları
+model PriceAlert {
+  id            String    @id @default(uuid())
+  userId        String
+  symbol        String
+  targetPrice   Float
+  condition     String    // above, below
+  type          String    @default("price") // price, percent
+  isActive      Boolean   @default(true)
+  triggeredAt   DateTime?
+  createdAt     DateTime  @default(now())
+  
+  user          User      @relation(fields: [userId], references: [id])
+  
+  @@map("price_alerts")
+}
+
+// Haberler
+model News {
+  id            String    @id @default(uuid())
+  title         String
+  content       String?
+  source        String
+  url           String?
+  publishedAt   DateTime
+  relatedStocks String[]
+  sentiment     Float?    // -1 to 1
+  createdAt     DateTime  @default(now())
+  
+  @@map("news")
+}
+
+// AI Tahminleri
+model Prediction {
+  id            String    @id @default(uuid())
+  symbol        String
+  method        String
+  predictedPrice Float
+  actualPrice   Float?
+  targetDate    DateTime
+  confidence    Float
+  error         Float?
+  errorPercent  Float?
+  accuracy      Float?
+  features      Json?
+  marketCondition String?
+  evaluatedAt   DateTime?
+  createdAt     DateTime  @default(now())
+  
+  @@index([symbol, createdAt])
+  @@index([method, accuracy])
+  @@map("predictions")
+}
+
+// Model performansı
+model ModelPerformance {
+  id              String    @id @default(uuid())
+  method          String    @unique
+  totalPredictions Int      @default(0)
+  avgAccuracy     Float     @default(0)
+  lastUpdated     DateTime  @updatedAt
+  
+  @@map("model_performances")
+}
+
+// Hisse senedi analizleri
+model StockAnalysis {
+  id            String    @id @default(uuid())
+  symbol        String    @unique
+  indicators    Json?
+  trend         Json?
+  signals       Json?
+  lastAnalyzed  DateTime
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  
+  @@map("stock_analyses")
+}

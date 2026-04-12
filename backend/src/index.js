@@ -18,6 +18,11 @@ import backtestRoutes  from './routes/backtest.js';
 import scanRoutes      from './routes/scan.js';
 import universalRoutes from './routes/universal.js';
 
+import aiRoutes        from './routes/ai.js';
+import predictionRoutes from './routes/prediction.js';
+import analysisRoutes   from './routes/analysis.js';
+import adminCacheRoutes from './routes/admin/cache.js';
+
 import { defaultLimiter, authLimiter, stockLimiter, scanLimiter, macroLimiter, reportLimiter, universalLimiter } from './middleware/smartRateLimit.js';
 import { errorHandler, notFoundHandler } from './middleware/errorHandler.js';
 import { httpLogger } from './lib/logger.js';
@@ -58,6 +63,11 @@ app.use('/api/report',    reportLimiter,    reportRoutes);
 app.use('/api/backtest',                    backtestRoutes);
 app.use('/api/scan',      scanLimiter,      scanRoutes);
 app.use('/api/universal', universalLimiter, universalRoutes);
+
+app.use('/api/ai',                          aiRoutes);
+app.use('/api/prediction',                  predictionRoutes);
+app.use('/api/analysis',                    analysisRoutes);
+app.use('/api/admin/cache',                 adminCacheRoutes);
 
 // ─── Health Check ────────────────────────────────────────────────────────
 app.get('/api/health', (req, res) => {
