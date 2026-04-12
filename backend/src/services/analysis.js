@@ -9,6 +9,7 @@ import { analyzeCompanyFundamentals } from './fundamentalAnalysis.js';
 import { generateFullPredictions, calculateImpactAnalysis, generatePipelineSteps } from './prediction.js';
 import { savePrediction, getPredictionHistory } from './predictionHistory.js';
 import { calculateRiskLevel } from './riskLevel.js';
+import { calculatePriceImpact } from './priceImpact.js';
 import prisma from '../lib/prisma.js';
 
 /**
@@ -349,6 +350,26 @@ export async function analyzeStock(ticker, period = '3mo') {
       indicators: { rsi: rsiInterp, macd: macdInterp, trend: trendInterp, bollinger: bollingerInterp },
       cds: macro.cds,
       vix: macro.vix,
+    }),
+    // ═══ v5.2: Fiyat Etki Analizi (TL + %) ═══
+    priceImpact: calculatePriceImpact({
+      currentPrice,
+      var95: riskReport.var95,
+      annualSigma: riskReport.garch?.annualSigma,
+      kaldirac: stockRatios?.leverage,
+      nfbFavok: stockRatios?.nfbToEbitda,
+      cds: macro.cds,
+      vix: macro.vix,
+      indicators: {
+        rsi: { raw: rsi14Raw, ...rsiInterp },
+        macd: { raw: macdRaw, ...macdInterp },
+        sma: { raw: { sma20: sma20Raw, sma50: sma50Raw }, ...smaInterp },
+        bollinger: { raw: bollingerRaw, ...bollingerInterp },
+        volume: volumeInterp,
+      },
+      predictions,
+      fundamentalScore: fundScore,
+      fk: stockRatios?.fk,
     }),
     analysisTimestamp: new Date().toISOString(),
   };

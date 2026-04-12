@@ -251,53 +251,118 @@ function PipelineVisualizer({ pipeline }) {
 // IMPACT ANALYSIS (Ağırlıklı Fiyat Etkisi)
 // ═══════════════════════════════════════════════════════════════════════════
 
-function ImpactAnalysisPanel({ impactAnalysis }) {
-  if (!impactAnalysis?.factors) return null
+function PriceImpactPanel({ priceImpact, currentPrice }) {
+  const [expandedCat, setExpandedCat] = useState(null)
+  if (!priceImpact?.categories) return null
 
-  const maxImpact = Math.max(...impactAnalysis.factors.map(f => f.impactPct), 1)
+  const { fairValue, totalImpactTL, totalImpactPct, direction, categories, topPositive, topNegative } = priceImpact
 
   return (
-    <ChartCard icon="⚖️" title="Fiyata Etki Eden Faktörler (Ağırlıklı)" badge="IMPACT" badgeColor="ai">
-      <div className="space-y-2.5">
-        {impactAnalysis.factors.map((factor, idx) => {
-          const c = COLOR_MAP[factor.color] || '#64748b'
-          const barWidth = (factor.impactPct / maxImpact) * 100
-          return (
-            <div key={idx} className="group">
-              <div className="flex items-center justify-between mb-1">
-                <div className="flex items-center gap-2">
-                  <span className="text-[10px] font-mono text-slate-600 w-4">#{idx + 1}</span>
-                  <span className="text-xs font-semibold text-slate-300">{factor.name}</span>
-                  <span className="text-[10px] px-1.5 py-0.5 rounded border" style={{ color: c, borderColor: c + '30', backgroundColor: c + '10' }}>{factor.category}</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <span className={`text-xs font-bold ${factor.direction === 'Pozitif' ? 'text-emerald-400' : factor.direction === 'Negatif' ? 'text-rose-400' : 'text-slate-400'}`}>
-                    {factor.direction === 'Pozitif' ? '↑' : factor.direction === 'Negatif' ? '↓' : '→'} {factor.direction}
-                  </span>
-                  <span className="text-xs font-bold font-mono text-white">{factor.impactPct}%</span>
-                </div>
+    <ChartCard icon="💰" title="Fiyat Etki Analizi (TL + %)" badge="v5.2" badgeColor="ai">
+      {/* Fair Value Header */}
+      <div className="grid grid-cols-3 gap-3 mb-4">
+        <div className="text-center p-2.5 rounded-xl bg-white/3 border border-white/5">
+          <div className="text-[10px] text-slate-500 mb-1">Güncel Fiyat</div>
+          <div className="text-base font-bold font-mono text-white">{formatCurrency(currentPrice)}</div>
+        </div>
+        <div className={`text-center p-2.5 rounded-xl border ${totalImpactTL >= 0 ? 'bg-emerald-500/8 border-emerald-500/20' : 'bg-rose-500/8 border-rose-500/20'}`}>
+          <div className="text-[10px] text-slate-500 mb-1">Toplam Etki</div>
+          <div className={`text-base font-bold font-mono ${totalImpactTL >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
+            {totalImpactTL >= 0 ? '+' : ''}{totalImpactTL} TL
+          </div>
+          <div className={`text-[10px] font-mono ${totalImpactTL >= 0 ? 'text-emerald-500/70' : 'text-rose-500/70'}`}>
+            {totalImpactPct >= 0 ? '+' : ''}{totalImpactPct}%
+          </div>
+        </div>
+        <div className="text-center p-2.5 rounded-xl bg-purple-500/8 border border-purple-500/20">
+          <div className="text-[10px] text-slate-500 mb-1">Adil Değer</div>
+          <div className="text-base font-bold font-mono text-purple-300">{formatCurrency(fairValue)}</div>
+          <div className="text-[10px] text-purple-400/60">{direction === 'YUKARI' ? '↑' : '↓'} {direction}</div>
+        </div>
+      </div>
+
+      {/* Categories */}
+      <div className="space-y-3">
+        {categories.map((cat, catIdx) => (
+          <div key={catIdx} className="rounded-xl border border-white/5 overflow-hidden">
+            {/* Category Header */}
+            <div
+              className="flex items-center justify-between p-3 cursor-pointer hover:bg-white/3 transition-colors"
+              onClick={() => setExpandedCat(expandedCat === catIdx ? null : catIdx)}
+            >
+              <div className="flex items-center gap-2">
+                <span>{cat.icon}</span>
+                <span className="text-xs font-bold text-slate-200">{cat.category}</span>
               </div>
-              <div className="h-5 w-full bg-white/5 rounded-md overflow-hidden">
-                <div className="impact-bar h-full flex items-center px-2" style={{ width: `${barWidth}%`, backgroundColor: c + '40' }}>
-                  <span className="text-[10px] font-mono text-white/80">{factor.status}</span>
-                </div>
+              <div className="flex items-center gap-3">
+                <span className={`text-sm font-bold font-mono ${cat.totalTL >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
+                  {cat.totalTL >= 0 ? '+' : ''}{cat.totalTL} TL
+                </span>
+                <span className={`text-xs font-mono ${cat.totalPct >= 0 ? 'text-emerald-500/70' : 'text-rose-500/70'}`}>
+                  {cat.totalPct >= 0 ? '+' : ''}{cat.totalPct}%
+                </span>
+                {expandedCat === catIdx ? <ChevronDown size={14} className="text-slate-500" /> : <ChevronRight size={14} className="text-slate-500" />}
               </div>
             </div>
-          )
-        })}
+
+            {/* Expanded Factors */}
+            {expandedCat === catIdx && (
+              <div className="accordion-content border-t border-white/5">
+                {cat.factors.map((factor, fIdx) => (
+                  <div key={fIdx} className="p-3 border-b border-white/3 last:border-b-0 hover:bg-white/2 transition-colors">
+                    <div className="flex items-center justify-between mb-1.5">
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs font-semibold text-slate-300">{factor.name}</span>
+                        <span className="text-[10px] font-mono text-slate-500 px-1.5 py-0.5 rounded bg-white/5">{factor.value}</span>
+                        <span className="text-[10px] text-slate-600">(w={factor.weight})</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className={`text-xs font-bold font-mono ${factor.impactTL >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
+                          {factor.impactTL >= 0 ? '+' : ''}{factor.impactTL} TL
+                        </span>
+                        <span className={`text-[10px] font-mono ${factor.impactPct >= 0 ? 'text-emerald-500/60' : 'text-rose-500/60'}`}>
+                          ({factor.impactPct >= 0 ? '+' : ''}{factor.impactPct}%)
+                        </span>
+                      </div>
+                    </div>
+                    {/* Impact Bar */}
+                    <div className="h-1.5 w-full bg-white/5 rounded-full overflow-hidden mb-1.5">
+                      <div
+                        className="h-full rounded-full transition-all"
+                        style={{
+                          width: `${Math.min(100, Math.abs(factor.impactPct) * 8)}%`,
+                          backgroundColor: factor.color,
+                          marginLeft: factor.impactTL < 0 ? 'auto' : 0,
+                        }}
+                      />
+                    </div>
+                    <p className="text-[10px] text-slate-500 leading-relaxed">{factor.explanation}</p>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        ))}
       </div>
-      {/* Özet */}
+
+      {/* Top Factors Summary */}
       <div className="mt-4 pt-3 border-t border-white/5 grid grid-cols-2 gap-3">
         <div>
-          <div className="text-[10px] text-slate-500 mb-1">En Güçlü Pozitif</div>
-          {impactAnalysis.topPositive.slice(0, 2).map((f, i) => (
-            <div key={i} className="text-xs text-emerald-400 font-medium">✅ {f.name}</div>
+          <div className="text-[10px] text-slate-500 mb-1.5">📈 En Güçlü Pozitif Etki</div>
+          {topPositive?.slice(0, 3).map((f, i) => (
+            <div key={i} className="flex items-center justify-between text-xs mb-1">
+              <span className="text-emerald-400">✅ {f.name}</span>
+              <span className="font-mono text-emerald-400 text-[10px]">+{f.impactTL} TL</span>
+            </div>
           ))}
         </div>
         <div>
-          <div className="text-[10px] text-slate-500 mb-1">En Güçlü Negatif</div>
-          {impactAnalysis.topNegative.slice(0, 2).map((f, i) => (
-            <div key={i} className="text-xs text-rose-400 font-medium">⚠️ {f.name}</div>
+          <div className="text-[10px] text-slate-500 mb-1.5">📉 En Güçlü Negatif Etki</div>
+          {topNegative?.slice(0, 3).map((f, i) => (
+            <div key={i} className="flex items-center justify-between text-xs mb-1">
+              <span className="text-rose-400">⚠️ {f.name}</span>
+              <span className="font-mono text-rose-400 text-[10px]">{f.impactTL} TL</span>
+            </div>
           ))}
         </div>
       </div>
@@ -715,7 +780,7 @@ const StockDetail = () => {
       {/* ─── BÖLÜM 3: Ağırlıklı Etki + Tahmin ────────────────── */}
       <div className="grid grid-cols-12 gap-5">
         <div className="col-span-12 lg:col-span-5">
-          <ImpactAnalysisPanel impactAnalysis={analysis?.impactAnalysis} />
+          <PriceImpactPanel priceImpact={analysis?.priceImpact} currentPrice={analysis?.currentPrice} />
         </div>
         <div className="col-span-12 lg:col-span-7">
           <PredictionsPanel predictions={analysis?.predictions} currentPrice={analysis?.currentPrice} />
