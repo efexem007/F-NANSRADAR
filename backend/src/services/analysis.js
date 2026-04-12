@@ -6,6 +6,8 @@ import { detectRegime } from './regimeDetector.js';
 import { calcRiskReport } from './riskAnalytics.js';
 import { softPolicy, calcMultiObjectiveReward } from './hrpOptimizer.js';
 import { analyzeCompanyFundamentals } from './fundamentalAnalysis.js';
+import { generateFullPredictions, calculateImpactAnalysis, generatePipelineSteps } from './prediction.js';
+import { savePrediction, getPredictionHistory } from './predictionHistory.js';
 import prisma from '../lib/prisma.js';
 
 /**
@@ -142,10 +144,17 @@ function generateAICommentary(data) {
 }
 
 /**
- * Ana analiz fonksiyonu - v3.0 (5 Kademeli)
+ * Ana analiz fonksiyonu - v5.0 (7 Kademeli + Tahmin + Pipeline + Impact)
  */
 export async function analyzeStock(ticker, period = '3mo') {
-  const { priceData, currentPrice } = await fetchStockPrices(ticker, period);
+  // Tahmin için uzun veri lazım - 1y çek
+  const longPeriod = period === '1mo' ? '6mo' : period === '3mo' ? '1y' : period === '6mo' ? '2y' : '2y';
+  
+  const [{ priceData, currentPrice }, longTermData] = await Promise.all([
+    fetchStockPrices(ticker, period),
+    fetchStockPrices(ticker, longPeriod),
+  ]);
+  
   if (!priceData || priceData.length < 14) {
     throw new Error(`${ticker} için yeterli fiyat verisi bulunamadı.`);
   }
@@ -241,6 +250,22 @@ export async function analyzeStock(ticker, period = '3mo') {
     regime: regimeKeyMap[regime.currentRegime],
   });
 
+  // ─── KADEME 6: ÇOK ZAMAN DİLİMLİ TAHMİN ─────────────────────────────────
+  const predictionData = longTermData.priceData.length > priceData.length ? longTermData.priceData : priceData;
+  const predictions = generateFullPredictions(predictionData);
+
+  // ─── KADEME 6.5: AĞIRLIKLI ETKİ ANALİZİ ──────────────────────────────────
+  const indicators = {
+    rsi: rsiInterp,
+    macd: macdInterp,
+    sma: smaInterp,
+    bollinger: bollingerInterp,
+    volume: volumeInterp,
+  };
+  const macroForImpact = { cds: macro.cds, vix: macro.vix, macroScore: macroScoreVal };
+  const regimeForImpact = { name: regime.regimeName };
+  const impactAnalysis = calculateImpactAnalysis(indicators, macroForImpact, regimeForImpact, riskReport, fundScore);
+
   // Commentary
   const commentary = generateAICommentary({
     rsi: rsiInterp, macd: macdInterp, sma: smaInterp, bollinger: bollingerInterp,
@@ -248,7 +273,16 @@ export async function analyzeStock(ticker, period = '3mo') {
     regime, ofi: ofiResult, riskReport, fracDiff: fracDiffResult
   });
 
-  return {
+  // ─── TAHMİN GEÇMİŞİ ─────────────────────────────────────────────────────
+  // Tahminleri kaydet (arka planda)
+  savePrediction(ticker, currentPrice, predictions, signal, finalScore).catch(() => {});
+  // Geçmiş karşılaştırma
+  const predictionHistory = await getPredictionHistory(ticker).catch(() => ({
+    history: [], metrics: { totalPredictions: 0 }
+  }));
+
+  // ─── Pipeline bilgisi ────────────────────────────────────────────────────
+  const result = {
     ticker,
     currentPrice,
     signal,
@@ -290,6 +324,15 @@ export async function analyzeStock(ticker, period = '3mo') {
     reward: rewardResult.reward,
     commentary,
     priceData: priceData.slice(-60),
+    // ═══ YENİ v5.0 ALANLARI ═══
+    predictions,
+    impactAnalysis,
+    predictionHistory,
+    analysisTimestamp: new Date().toISOString(),
   };
-}
 
+  // Pipeline adımları (result üzerinden üretiliyor)
+  result.pipeline = generatePipelineSteps(result);
+
+  return result;
+}

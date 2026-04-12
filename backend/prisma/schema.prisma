@@ -127,3 +127,21 @@ model TechnicalIndicator {
   @@unique([ticker, date])
   @@index([ticker, date(sort: Desc)])
 }
+
+model PredictionHistory {
+  id            String   @id @default(uuid())
+  ticker        String
+  analysisDate  DateTime @default(now())
+  currentPrice  Float
+  pred1w        Float?
+  pred1m        Float?
+  pred3m        Float?
+  pred1y        Float?
+  pred3y        Float?
+  actual1w      Float?
+  actual1m      Float?
+  actual3m      Float?
+  signal        String
+  score         Int
+  @@index([ticker, analysisDate])
+}

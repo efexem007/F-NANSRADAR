@@ -9,6 +9,8 @@ export const fetchStockPrices = async (ticker, period = '3mo', interval = '1d') 
       case '3mo': period1.setMonth(period1.getMonth() - 3); break;
       case '6mo': period1.setMonth(period1.getMonth() - 6); break;
       case '1y': period1.setFullYear(period1.getFullYear() - 1); break;
+      case '2y': period1.setFullYear(period1.getFullYear() - 2); break;
+      case '5y': period1.setFullYear(period1.getFullYear() - 5); break;
       default: period1.setMonth(period1.getMonth() - 3);
     }
     const period2 = new Date(); // now

@@ -1,13 +1,13 @@
 import { useState, useEffect, useMemo } from 'react'
 import { useParams, Link } from 'react-router-dom'
-import { LineChart, Line, XAxis, YAxis, Tooltip, Legend, ResponsiveContainer, ComposedChart, Bar, ReferenceLine } from 'recharts'
+import { LineChart, Line, XAxis, YAxis, Tooltip, Legend, ResponsiveContainer, ComposedChart, Bar, ReferenceLine, AreaChart, Area, BarChart } from 'recharts'
 import client from '../api/client'
 import { formatCurrency } from '../utils/formatters'
 import { getColor } from '../constants/colors'
 import { linearRegression, calculateEMA } from '../utils/predictions'
 import ChartCard from '../components/ChartCard'
 import ChartTooltip from '../components/ChartTooltip'
-import { ArrowLeft, RefreshCw, Activity, TrendingUp, TrendingDown, AlertTriangle, BarChart2, Zap } from 'lucide-react'
+import { ArrowLeft, RefreshCw, Activity, TrendingUp, TrendingDown, AlertTriangle, BarChart2, Zap, ChevronDown, ChevronRight, Target, Clock, Eye, History, Layers } from 'lucide-react'
 
 const SIGNAL_STYLES = {
   'GÜÇLÜ AL': 'bg-emerald-500/20 text-emerald-400 border-emerald-500/40',
@@ -20,6 +20,10 @@ const SIGNAL_STYLES = {
 }
 
 const COLOR_MAP = { green: '#10b981', cyan: '#06b6d4', yellow: '#f59e0b', red: '#f43f5e', gray: '#64748b' }
+
+// ═══════════════════════════════════════════════════════════════════════════
+// SUB-COMPONENTS
+// ═══════════════════════════════════════════════════════════════════════════
 
 function IndicatorBar({ label, status, score, color, comment, icon: Icon }) {
   const c = COLOR_MAP[color] || '#64748b'
@@ -40,22 +44,364 @@ function IndicatorBar({ label, status, score, color, comment, icon: Icon }) {
   )
 }
 
-function AICommentary({ text, signal, score }) {
+function AICommentary({ text }) {
   const lines = text.split('\n').filter(Boolean)
   return (
     <div className="space-y-2">
       {lines.map((line, i) => {
         const isBold = line.startsWith('**') || line.startsWith('📈') || line.startsWith('✅') || line.startsWith('⚠️') || line.startsWith('📉') || line.startsWith('⏸')
         const clean = line.replace(/\*\*/g, '').replace(/_/g, '')
-        return (
-          <p key={i} className={`text-sm leading-relaxed ${isBold ? 'text-white font-semibold' : 'text-slate-400'}`}>
-            {clean}
-          </p>
-        )
+        return <p key={i} className={`text-sm leading-relaxed ${isBold ? 'text-white font-semibold' : 'text-slate-400'}`}>{clean}</p>
       })}
     </div>
   )
 }
+
+// ═══════════════════════════════════════════════════════════════════════════
+// PIPELINE VISUALIZER
+// ═══════════════════════════════════════════════════════════════════════════
+
+function PipelineVisualizer({ pipeline }) {
+  const [openStep, setOpenStep] = useState(null)
+  if (!pipeline || pipeline.length === 0) return null
+
+  return (
+    <ChartCard icon="🔬" title="Analiz Pipeline'ı (Adım Adım)" badge="8 ADIM" badgeColor="ai">
+      <div className="space-y-1">
+        {pipeline.map((step, idx) => (
+          <div key={step.step}>
+            <div
+              className={`pipeline-step flex items-center gap-3 ${openStep === idx ? 'active' : ''}`}
+              onClick={() => setOpenStep(openStep === idx ? null : idx)}
+            >
+              <span className="text-lg">{step.icon}</span>
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-bold text-slate-200">{step.name}</span>
+                  <span className="text-[10px] text-slate-600 font-mono">{step.duration}</span>
+                </div>
+                <p className="text-[11px] text-slate-500 truncate">{step.detail}</p>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="w-2 h-2 rounded-full bg-emerald-400"></span>
+                {openStep === idx ? <ChevronDown size={14} className="text-slate-500" /> : <ChevronRight size={14} className="text-slate-500" />}
+              </div>
+            </div>
+            {openStep === idx && (
+              <div className="accordion-content ml-10 mt-1 mb-2 p-3 rounded-lg bg-white/2 border border-white/5 text-xs text-slate-400">
+                {step.description}
+              </div>
+            )}
+            {idx < pipeline.length - 1 && <div className="pipeline-connector" />}
+          </div>
+        ))}
+      </div>
+    </ChartCard>
+  )
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// IMPACT ANALYSIS (Ağırlıklı Fiyat Etkisi)
+// ═══════════════════════════════════════════════════════════════════════════
+
+function ImpactAnalysisPanel({ impactAnalysis }) {
+  if (!impactAnalysis?.factors) return null
+
+  const maxImpact = Math.max(...impactAnalysis.factors.map(f => f.impactPct), 1)
+
+  return (
+    <ChartCard icon="⚖️" title="Fiyata Etki Eden Faktörler (Ağırlıklı)" badge="IMPACT" badgeColor="ai">
+      <div className="space-y-2.5">
+        {impactAnalysis.factors.map((factor, idx) => {
+          const c = COLOR_MAP[factor.color] || '#64748b'
+          const barWidth = (factor.impactPct / maxImpact) * 100
+          return (
+            <div key={idx} className="group">
+              <div className="flex items-center justify-between mb-1">
+                <div className="flex items-center gap-2">
+                  <span className="text-[10px] font-mono text-slate-600 w-4">#{idx + 1}</span>
+                  <span className="text-xs font-semibold text-slate-300">{factor.name}</span>
+                  <span className="text-[10px] px-1.5 py-0.5 rounded border" style={{ color: c, borderColor: c + '30', backgroundColor: c + '10' }}>{factor.category}</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className={`text-xs font-bold ${factor.direction === 'Pozitif' ? 'text-emerald-400' : factor.direction === 'Negatif' ? 'text-rose-400' : 'text-slate-400'}`}>
+                    {factor.direction === 'Pozitif' ? '↑' : factor.direction === 'Negatif' ? '↓' : '→'} {factor.direction}
+                  </span>
+                  <span className="text-xs font-bold font-mono text-white">{factor.impactPct}%</span>
+                </div>
+              </div>
+              <div className="h-5 w-full bg-white/5 rounded-md overflow-hidden">
+                <div className="impact-bar h-full flex items-center px-2" style={{ width: `${barWidth}%`, backgroundColor: c + '40' }}>
+                  <span className="text-[10px] font-mono text-white/80">{factor.status}</span>
+                </div>
+              </div>
+            </div>
+          )
+        })}
+      </div>
+      {/* Özet */}
+      <div className="mt-4 pt-3 border-t border-white/5 grid grid-cols-2 gap-3">
+        <div>
+          <div className="text-[10px] text-slate-500 mb-1">En Güçlü Pozitif</div>
+          {impactAnalysis.topPositive.slice(0, 2).map((f, i) => (
+            <div key={i} className="text-xs text-emerald-400 font-medium">✅ {f.name}</div>
+          ))}
+        </div>
+        <div>
+          <div className="text-[10px] text-slate-500 mb-1">En Güçlü Negatif</div>
+          {impactAnalysis.topNegative.slice(0, 2).map((f, i) => (
+            <div key={i} className="text-xs text-rose-400 font-medium">⚠️ {f.name}</div>
+          ))}
+        </div>
+      </div>
+    </ChartCard>
+  )
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// MULTI-HORIZON PREDICTIONS
+// ═══════════════════════════════════════════════════════════════════════════
+
+function PredictionsPanel({ predictions, currentPrice }) {
+  const [activeTab, setActiveTab] = useState('1w')
+  if (!predictions) return null
+
+  const tabs = [
+    { key: '1w', label: '1 Hafta', data: predictions.weekly },
+    { key: '1m', label: '1 Ay', data: predictions.monthly },
+    { key: '1y', label: '1 Yıl', data: predictions.yearly },
+    { key: '3y', label: '3 Yıl', data: predictions.threeYear },
+  ]
+
+  const active = tabs.find(t => t.key === activeTab)
+  const pred = active?.data
+
+  // Chart data
+  const chartData = useMemo(() => {
+    if (!pred) return []
+    if (activeTab === '1w' && pred.dailyPredictions) {
+      return pred.dailyPredictions.map(dp => ({
+        name: dp.day === 0 ? 'Bugün' : `+${dp.day}g`,
+        median: dp.median,
+        upper: dp.upper75,
+        lower: dp.lower25,
+        upper95: dp.upper95,
+        lower5: dp.lower5,
+      }))
+    }
+    if ((activeTab === '1m') && pred.monthlyPoints) {
+      return [
+        { name: 'Bugün', median: currentPrice, upper: currentPrice, lower: currentPrice, upper95: currentPrice, lower5: currentPrice },
+        ...pred.monthlyPoints.map(mp => ({
+          name: mp.label,
+          median: mp.median,
+          upper: mp.upper75,
+          lower: mp.lower25,
+          upper95: mp.upper95,
+          lower5: mp.lower5,
+        }))
+      ]
+    }
+    if ((activeTab === '1y' || activeTab === '3y') && pred.checkpoints) {
+      return [
+        { name: 'Bugün', median: currentPrice, upper: currentPrice, lower: currentPrice, upper95: currentPrice, lower5: currentPrice },
+        ...pred.checkpoints.map(cp => ({
+          name: cp.label,
+          median: cp.median,
+          upper: cp.upper75,
+          lower: cp.lower25,
+          upper95: cp.upper95,
+          lower5: cp.lower5,
+        }))
+      ]
+    }
+    return []
+  }, [pred, activeTab, currentPrice])
+
+  return (
+    <ChartCard icon="🔮" title="Fiyat Tahminleri (Monte Carlo)" badge="AI POWERED" badgeColor="ai">
+      {/* Tabs */}
+      <div className="flex gap-2 mb-4">
+        {tabs.map(t => (
+          <button key={t.key} onClick={() => setActiveTab(t.key)} className={`pred-tab ${activeTab === t.key ? 'active' : ''}`}>
+            {t.label}
+          </button>
+        ))}
+      </div>
+
+      {/* Summary Cards */}
+      {pred && (
+        <div className="grid grid-cols-3 gap-3 mb-4">
+          <div className="scenario-card bull">
+            <div className="text-[10px] text-emerald-500/70 mb-1">🐂 Bull Senaryo</div>
+            <div className="text-lg font-bold text-emerald-400 font-mono">{formatCurrency(pred.range?.upper75)}</div>
+            <div className="text-[10px] text-emerald-500/60">+{((pred.range?.upper75 / currentPrice - 1) * 100).toFixed(1)}%</div>
+          </div>
+          <div className="scenario-card base">
+            <div className="text-[10px] text-purple-400/70 mb-1">📊 Baz Senaryo</div>
+            <div className="text-lg font-bold text-purple-300 font-mono">{formatCurrency(pred.target)}</div>
+            <div className={`text-[10px] ${pred.changePct >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>{pred.changePct >= 0 ? '+' : ''}{pred.changePct}%</div>
+          </div>
+          <div className="scenario-card bear">
+            <div className="text-[10px] text-rose-400/70 mb-1">🐻 Bear Senaryo</div>
+            <div className="text-lg font-bold text-rose-400 font-mono">{formatCurrency(pred.range?.lower25)}</div>
+            <div className="text-[10px] text-rose-400/60">{((pred.range?.lower25 / currentPrice - 1) * 100).toFixed(1)}%</div>
+          </div>
+        </div>
+      )}
+
+      {/* Chart */}
+      {chartData.length > 0 && (
+        <ResponsiveContainer width="100%" height={220}>
+          <AreaChart data={chartData}>
+            <defs>
+              <linearGradient id="bandGrad" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="5%" stopColor="#8b5cf6" stopOpacity={0.3} />
+                <stop offset="95%" stopColor="#8b5cf6" stopOpacity={0.02} />
+              </linearGradient>
+              <linearGradient id="bandGrad95" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="5%" stopColor="#06b6d4" stopOpacity={0.15} />
+                <stop offset="95%" stopColor="#06b6d4" stopOpacity={0.01} />
+              </linearGradient>
+            </defs>
+            <XAxis dataKey="name" tick={{ fill: '#64748b', fontSize: 10 }} />
+            <YAxis tick={{ fill: '#64748b', fontSize: 10 }} domain={['auto', 'auto']} />
+            <Tooltip contentStyle={{ background: '#1a1a35', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 12, fontSize: 12 }} />
+            <Area type="monotone" dataKey="upper95" stroke="none" fill="url(#bandGrad95)" name="95% Üst" />
+            <Area type="monotone" dataKey="lower5" stroke="none" fill="url(#bandGrad95)" name="5% Alt" />
+            <Area type="monotone" dataKey="upper" stroke="none" fill="url(#bandGrad)" name="75% Üst" />
+            <Area type="monotone" dataKey="lower" stroke="none" fill="url(#bandGrad)" name="25% Alt" />
+            <Line type="monotone" dataKey="median" stroke="#8b5cf6" strokeWidth={2.5} dot={{ r: 4, fill: '#8b5cf6' }} name="Medyan Tahmin" />
+            <ReferenceLine y={currentPrice} stroke="#f59e0b" strokeDasharray="4 4" strokeWidth={1} label={{ value: `Güncel: ₺${currentPrice?.toFixed(2)}`, fill: '#f59e0b', fontSize: 10 }} />
+          </AreaChart>
+        </ResponsiveContainer>
+      )}
+
+      {/* Bottom Info */}
+      {pred && (
+        <div className="mt-3 flex items-center justify-between text-[10px] text-slate-500">
+          <span>📐 {pred.method}</span>
+          <div className="flex items-center gap-3">
+            <span>⬆️ Yukarı İhtimal: <b className="text-emerald-400">{pred.probabilityUp}%</b></span>
+            {pred.momentum && <span>RSI: <b>{pred.momentum.rsi}</b> | z: <b>{pred.momentum.zScore}</b></span>}
+          </div>
+        </div>
+      )}
+
+      {/* Targets Summary */}
+      {predictions.summary && (
+        <div className="mt-3 pt-3 border-t border-white/5">
+          <div className="text-[10px] text-slate-500 mb-2">📌 Tüm Zaman Dilimleri Özeti</div>
+          <div className="grid grid-cols-5 gap-2 text-center">
+            {Object.entries(predictions.summary.targets).map(([key, val]) => (
+              <div key={key} className="p-1.5 rounded-lg bg-white/2">
+                <div className="text-[10px] text-slate-500 uppercase">{key}</div>
+                <div className="text-xs font-bold font-mono text-white">{formatCurrency(val.price)}</div>
+                <div className={`text-[10px] font-mono ${val.change >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>{val.change >= 0 ? '+' : ''}{val.change}%</div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </ChartCard>
+  )
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// PREDICTION HISTORY (Geçmiş Karşılaştırma)
+// ═══════════════════════════════════════════════════════════════════════════
+
+function PredictionHistoryPanel({ predictionHistory }) {
+  if (!predictionHistory || predictionHistory.metrics?.totalPredictions === 0) {
+    return (
+      <ChartCard icon="📜" title="Geçmiş Tahmin Karşılaştırması" badge="GEÇMİŞ">
+        <div className="text-center py-6 text-slate-500 text-sm">
+          <History size={32} className="mx-auto mb-2 opacity-30" />
+          <p>Henüz geçmiş tahmin verisi yok.</p>
+          <p className="text-xs mt-1">İlk analiz kaydedildi, karşılaştırmalar bir sonraki analizde başlayacak.</p>
+        </div>
+      </ChartCard>
+    )
+  }
+
+  const { history, metrics } = predictionHistory
+
+  return (
+    <ChartCard icon="📜" title="Geçmiş Tahmin Karşılaştırması" badge={`${metrics.totalPredictions} KAYIT`}>
+      {/* Metrics Summary */}
+      <div className="grid grid-cols-4 gap-3 mb-4">
+        <div className="text-center p-2 rounded-lg bg-white/3">
+          <div className="text-[10px] text-slate-500">MAPE (1H)</div>
+          <div className="text-lg font-bold font-mono text-white">{metrics.mape1w !== null ? `%${metrics.mape1w}` : '—'}</div>
+          <div className="text-[10px] text-slate-600">Ort. Hata</div>
+        </div>
+        <div className="text-center p-2 rounded-lg bg-white/3">
+          <div className="text-[10px] text-slate-500">Hit Rate (1H)</div>
+          <div className="text-lg font-bold font-mono text-emerald-400">{metrics.hitRate1w !== null ? `%${metrics.hitRate1w}` : '—'}</div>
+          <div className="text-[10px] text-slate-600">Yön Doğruluğu</div>
+        </div>
+        <div className="text-center p-2 rounded-lg bg-white/3">
+          <div className="text-[10px] text-slate-500">MAPE (1A)</div>
+          <div className="text-lg font-bold font-mono text-white">{metrics.mape1m !== null ? `%${metrics.mape1m}` : '—'}</div>
+          <div className="text-[10px] text-slate-600">Ort. Hata</div>
+        </div>
+        <div className="text-center p-2 rounded-lg bg-white/3">
+          <div className="text-[10px] text-slate-500">Hit Rate (1A)</div>
+          <div className="text-lg font-bold font-mono text-emerald-400">{metrics.hitRate1m !== null ? `%${metrics.hitRate1m}` : '—'}</div>
+          <div className="text-[10px] text-slate-600">Yön Doğruluğu</div>
+        </div>
+      </div>
+
+      {/* History Table */}
+      {history.length > 0 && (
+        <div className="overflow-x-auto">
+          <table className="w-full text-xs">
+            <thead>
+              <tr className="border-b border-white/5">
+                <th className="text-left text-slate-500 py-2 font-medium">Tarih</th>
+                <th className="text-right text-slate-500 py-2 font-medium">Fiyat</th>
+                <th className="text-right text-slate-500 py-2 font-medium">Tahmin 1H</th>
+                <th className="text-right text-slate-500 py-2 font-medium">Gerçek 1H</th>
+                <th className="text-right text-slate-500 py-2 font-medium">Hata</th>
+                <th className="text-center text-slate-500 py-2 font-medium">Yön</th>
+                <th className="text-center text-slate-500 py-2 font-medium">Sinyal</th>
+              </tr>
+            </thead>
+            <tbody>
+              {history.map((h, idx) => (
+                <tr key={h.id || idx} className="history-row border-b border-white/3">
+                  <td className="py-2 text-slate-400">{new Date(h.date).toLocaleDateString('tr-TR', { day: '2-digit', month: 'short' })}</td>
+                  <td className="py-2 text-right font-mono text-white">{formatCurrency(h.currentPrice)}</td>
+                  <td className="py-2 text-right font-mono text-purple-300">{h.predictions?.['1w'] ? formatCurrency(h.predictions['1w']) : '—'}</td>
+                  <td className="py-2 text-right font-mono text-white">{h.actuals?.['1w'] ? formatCurrency(h.actuals['1w']) : '⏳'}</td>
+                  <td className="py-2 text-right font-mono">
+                    {h.errors?.error1w !== undefined
+                      ? <span className={h.errors.error1w < 3 ? 'text-emerald-400' : h.errors.error1w < 5 ? 'text-amber-400' : 'text-rose-400'}>%{h.errors.error1w}</span>
+                      : <span className="text-slate-600">—</span>
+                    }
+                  </td>
+                  <td className="py-2 text-center">
+                    {h.errors?.direction1w !== undefined
+                      ? h.errors.direction1w ? '✅' : '❌'
+                      : '⏳'
+                    }
+                  </td>
+                  <td className="py-2 text-center">
+                    <span className={`text-[10px] px-1.5 py-0.5 rounded-full border ${SIGNAL_STYLES[h.signal] || ''}`}>{h.signal}</span>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </ChartCard>
+  )
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// MAIN STOCK DETAIL PAGE
+// ═══════════════════════════════════════════════════════════════════════════
 
 const StockDetail = () => {
   const { ticker } = useParams()
@@ -98,21 +444,10 @@ const StockDetail = () => {
     }))
   }, [analysis])
 
-  const predictions = useMemo(() => {
-    if (!analysis?.priceData) return []
-    return linearRegression(analysis.priceData)
-  }, [analysis])
-
-  const chartData = useMemo(() => {
-    const actual = priceWithEma.map(p => ({ ...p, predicted: null }))
-    const preds = predictions.map(p => ({ date: p.date, close: null, ema: null, predicted: p.predicted, volume: 0 }))
-    return [...actual, ...preds]
-  }, [priceWithEma, predictions])
-
   if (loading) return (
     <div className="flex flex-col items-center justify-center h-[60vh] gap-3">
       <div className="w-12 h-12 border-4 border-purple-500 border-t-transparent rounded-full animate-spin" />
-      <p className="text-slate-400 text-sm animate-pulse">{ticker} analiz ediliyor...</p>
+      <p className="text-slate-400 text-sm animate-pulse">{ticker} analiz ediliyor... (7 kademe)</p>
     </div>
   )
 
@@ -129,16 +464,9 @@ const StockDetail = () => {
   const ratios = fundamental?.ratios || {}
   const signalStyle = SIGNAL_STYLES[analysis?.signal] || SIGNAL_STYLES['BEKLE']
 
-  const RatioRow = ({ label, value }) => (
-    <div className="flex justify-between py-2 border-b border-white/5 text-sm">
-      <span className="text-slate-500">{label}</span>
-      <span className="font-semibold font-mono">{value ?? '—'}</span>
-    </div>
-  )
-
   return (
     <div className="space-y-6 animate-fade-in pb-10">
-      {/* Header */}
+      {/* ─── Header ──────────────────────────────────────────────── */}
       <div className="flex items-center justify-between flex-wrap gap-4">
         <div className="flex items-center gap-3">
           <Link to="/signals" className="w-8 h-8 rounded-lg bg-white/5 border border-white/10 flex items-center justify-center hover:border-purple-500/50 transition-colors">
@@ -146,7 +474,7 @@ const StockDetail = () => {
           </Link>
           <span className="w-3 h-3 rounded-full" style={{ background: color }} />
           <h1 className="text-2xl font-bold">{ticker}</h1>
-          <span className={`text-sm font-bold px-3 py-1 rounded-full border ${signalStyle}`}>{analysis?.signal}</span>
+          <span className={`text-sm font-bold px-3 py-1 rounded-full border signal-pulse ${signalStyle}`}>{analysis?.signal}</span>
         </div>
         <div className="flex items-center gap-3">
           <div className="text-right">
@@ -169,7 +497,10 @@ const StockDetail = () => {
         ))}
       </div>
 
-      {/* Main grid */}
+      {/* ─── BÖLÜM 1: Pipeline Visualizer ─────────────────────── */}
+      <PipelineVisualizer pipeline={analysis?.pipeline} />
+
+      {/* ─── BÖLÜM 2: Ana Grid (Indicators + Chart) ──────────── */}
       <div className="grid grid-cols-12 gap-5">
         {/* Left col: Indicators */}
         <div className="col-span-12 lg:col-span-4 space-y-3">
@@ -225,27 +556,25 @@ const StockDetail = () => {
 
           {/* AI Commentary */}
           <ChartCard icon="🤖" title="AI Yorum & Strateji Analizi" badge="YAPAY ZEKA" badgeColor="ai">
-            {analysis?.commentary && <AICommentary text={analysis.commentary} signal={analysis.signal} score={analysis.finalScore} />}
-          </ChartCard>
-
-          {/* Tahmin */}
-          <ChartCard icon="🔮" title="Tahmin Modeli (Lineer Regresyon)" badge="AI POWERED" badgeColor="ai">
-            <ResponsiveContainer width="100%" height={200}>
-              <LineChart data={chartData}>
-                <XAxis dataKey="date" tick={{ fill: '#64748b', fontSize: 9 }} />
-                <YAxis tick={{ fill: '#64748b', fontSize: 10 }} />
-                <Tooltip content={<ChartTooltip />} />
-                <Legend wrapperStyle={{ fontSize: 11 }} />
-                <Line dataKey="close" stroke="#00ff88" strokeWidth={2} dot={false} name="Gerçek" isAnimationActive={false} />
-                <Line dataKey="predicted" stroke="#8b5cf6" strokeWidth={2} strokeDasharray="5 5" dot={false} name="Tahmin" isAnimationActive={false} />
-                <Line dataKey="ema" stroke="#ec4899" strokeWidth={1.5} dot={false} name="EMA" isAnimationActive={false} />
-              </LineChart>
-            </ResponsiveContainer>
+            {analysis?.commentary && <AICommentary text={analysis.commentary} />}
           </ChartCard>
         </div>
       </div>
 
-      {/* Fundamental Ratios */}
+      {/* ─── BÖLÜM 3: Ağırlıklı Etki + Tahmin ────────────────── */}
+      <div className="grid grid-cols-12 gap-5">
+        <div className="col-span-12 lg:col-span-5">
+          <ImpactAnalysisPanel impactAnalysis={analysis?.impactAnalysis} />
+        </div>
+        <div className="col-span-12 lg:col-span-7">
+          <PredictionsPanel predictions={analysis?.predictions} currentPrice={analysis?.currentPrice} />
+        </div>
+      </div>
+
+      {/* ─── BÖLÜM 4: Geçmiş Tahmin Karşılaştırma ────────────── */}
+      <PredictionHistoryPanel predictionHistory={analysis?.predictionHistory} />
+
+      {/* ─── BÖLÜM 5: Finansal Çarpanlar (Temel Analiz) ───────── */}
       {fundamental?.ratios && Object.keys(ratios).length > 0 && (
         <ChartCard icon="🎯" title="Finansal Çarpanlar (Temel Analiz)">
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
@@ -268,7 +597,7 @@ const StockDetail = () => {
         </ChartCard>
       )}
 
-      {/* Kademe 3/4/5 Panel */}
+      {/* ─── BÖLÜM 6: Rejim + Risk + G-Policy (Mevcut) ───────── */}
       {analysis && (
         <div className="grid grid-cols-12 gap-4">
           {/* Rejim Tespiti */}
@@ -385,6 +714,14 @@ const StockDetail = () => {
               </div>
             </ChartCard>
           </div>
+        </div>
+      )}
+
+      {/* ─── Footer: Analiz zamanı ─────────────────────────────── */}
+      {analysis?.analysisTimestamp && (
+        <div className="text-center text-[10px] text-slate-600 pt-2">
+          <Clock size={10} className="inline mr-1" />
+          Son analiz: {new Date(analysis.analysisTimestamp).toLocaleString('tr-TR')} | FinansRadar AI v5.0
         </div>
       )}
     </div>
