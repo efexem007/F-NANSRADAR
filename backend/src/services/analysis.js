@@ -5,6 +5,8 @@ import { findOptimalD, calcOFI } from './fracDiff.js';
 import { detectRegime } from './regimeDetector.js';
 import { calcRiskReport } from './riskAnalytics.js';
 import { softPolicy, calcMultiObjectiveReward } from './hrpOptimizer.js';
+import { analyzeCompanyFundamentals } from './fundamentalAnalysis.js';
+import prisma from '../lib/prisma.js';
 
 /**
  * RSI yorumu
@@ -150,6 +152,15 @@ export async function analyzeStock(ticker, period = '3mo') {
 
   const closes = priceData.map(p => p.close);
 
+  // ─── Veritabanından temel veri çek ─────────────────────────────────────────
+  const stockRecord = await prisma.stock.findUnique({
+    where: { ticker },
+    include: { ratios: true, fundamental: { orderBy: { period: 'desc' }, take: 2 } }
+  }).catch(() => null);
+  const stockRatios = stockRecord?.ratios || null;
+  const fundamentals = stockRecord?.fundamental || [];
+  const sector = stockRecord?.sector || 'Unknown';
+
   // ─── KADEME 1: Veri Füzyonu ───────────────────────────────────────────────
   const fracDiffResult = closes.length >= 20 ? findOptimalD(closes) : { d: 0.5, memoryRetained: 50 };
   const ofiResult = calcOFI(priceData);
@@ -191,7 +202,9 @@ export async function analyzeStock(ticker, period = '3mo') {
   
   // OFI skoru tekniğe dahil (küçük ağırlıkla)
   const adjustedTechScore = techScore * 0.90 + ofiResult.score * 0.10;
-  const fundScore = 50; // Temel veri yoksa nötr
+  // ─── PPTX Temel Analiz ──────────────────────────────────────────────────────
+  const fundamentalAnalysis = analyzeCompanyFundamentals(stockRatios, fundamentals, sector, regime.regimeName);
+  const fundScore = fundamentalAnalysis.combined.score; // Gerçek temel skor (0-100)
 
   // ─── Birleşik Skor - Rejime Göre Dinamik Ağırlıklar ─────────────────────
   // SignalScore = w_tech*Tech + w_fund*Fund + w_macro*Macro + w_sent*Sent
