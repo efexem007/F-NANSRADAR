@@ -147,16 +147,21 @@ function generateAICommentary(data) {
  * Ana analiz fonksiyonu - v5.0 (7 Kademeli + Tahmin + Pipeline + Impact)
  */
 export async function analyzeStock(ticker, period = '3mo') {
-  // Tahmin için uzun veri lazım - 1y çek
+  // Tahmin için uzun veri lazım - fallback olarak normal period kullan
   const longPeriod = period === '1mo' ? '6mo' : period === '3mo' ? '1y' : period === '6mo' ? '2y' : '2y';
   
-  const [{ priceData, currentPrice }, longTermData] = await Promise.all([
-    fetchStockPrices(ticker, period),
-    fetchStockPrices(ticker, longPeriod),
-  ]);
+  const { priceData, currentPrice } = await fetchStockPrices(ticker, period);
   
   if (!priceData || priceData.length < 14) {
     throw new Error(`${ticker} için yeterli fiyat verisi bulunamadı.`);
+  }
+
+  // Uzun vade verisi (tahminler için) - hata olursa priceData'yı kullan
+  let longTermData = { priceData: [] };
+  try {
+    longTermData = await fetchStockPrices(ticker, longPeriod);
+  } catch (e) {
+    console.warn(`${ticker} uzun vade verisi alınamadı, mevcut veri ile devam ediliyor.`);
   }
 
   const closes = priceData.map(p => p.close);
