@@ -490,7 +490,7 @@ export default function Scanner() {
       {/* Market Summary Bar */}
       {scanResults && <MarketSummaryBar results={scanResults.results} />}
 
-      {view === 'scanner' ? (
+      {view === 'scanner' && (
         <>
           {/* Market Tabs + Scan Button */}
           <div className="flex items-center justify-between flex-wrap gap-3">
@@ -551,8 +551,8 @@ export default function Scanner() {
 
           {/* Main Content Grid */}
           <div className="grid grid-cols-12 gap-5">
-            {/* Results Table */}
-            <div className="col-span-12 lg:col-span-8">
+            {/* Full Width Results Table */}
+            <div className="col-span-12">
               <ChartCard icon="📋" title="Tarama Sonuçları" badge={displayResults.length > 0 ? `${displayResults.length} VARLIK` : 'BOŞ'}>
                 {!scanResults ? (
                   <div className="text-center py-12">
@@ -613,45 +613,43 @@ export default function Scanner() {
                 )}
               </ChartCard>
             </div>
-
-            {/* Sidebar: AI Picks + Watchlist */}
-            <div className="col-span-12 lg:col-span-4 space-y-5">
-              <AIPicksCard picks={aiPicks} onNavigate={navigateToAsset} />
-              <WatchlistPanel
-                watchlist={watchlist}
-                loading={wlLoading}
-                onRemove={removeFromWatchlist}
-                onNavigate={navigateToAsset}
-              />
-
-              {/* Scan Stats */}
-              {scanResults && (
-                <div className="glass-card p-4">
-                  <h3 className="text-xs font-bold text-white mb-3 flex items-center gap-2"><BarChart2 size={14} className="text-cyan-400" /> Piyasa Dağılımı</h3>
-                  {MARKETS.filter(m => m.key !== 'all').map(m => {
-                    const count = scanResults.results?.filter(r => r.type === m.key).length || 0;
-                    const buyCount = scanResults.results?.filter(r => r.type === m.key && (r.signal === 'AL' || r.signal === 'GÜÇLÜ AL')).length || 0;
-                    return (
-                      <div key={m.key} className="flex items-center justify-between py-1.5 border-b border-white/3 last:border-b-0">
-                        <div className="flex items-center gap-2 text-xs text-slate-300">
-                          <span>{m.icon}</span>{m.label}
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <span className="text-[10px] text-emerald-400 font-mono">{buyCount} AL</span>
-                          <span className="text-[10px] text-slate-500">/ {count}</span>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
           </div>
         </>
-      ) : (
-        /* Watchlist Detailed View */
+      )}
+
+      {view === 'ai' && (
         <div className="grid grid-cols-12 gap-5">
-          <div className="col-span-12 lg:col-span-8">
+          <div className="col-span-12 md:col-span-8 md:col-start-3">
+            <AIPicksCard picks={aiPicks} onNavigate={navigateToAsset} />
+            
+            {/* Scan Stats */}
+            {scanResults && (
+              <div className="glass-card p-4 mt-5">
+                <h3 className="text-xs font-bold text-white mb-3 flex items-center gap-2"><BarChart2 size={14} className="text-cyan-400" /> Piyasa Dağılımı</h3>
+                {MARKETS.filter(m => m.key !== 'all').map(m => {
+                  const count = scanResults.results?.filter(r => r.type === m.key).length || 0;
+                  const buyCount = scanResults.results?.filter(r => r.type === m.key && (r.signal === 'AL' || r.signal === 'GÜÇLÜ AL')).length || 0;
+                  return (
+                    <div key={m.key} className="flex items-center justify-between py-1.5 border-b border-white/3 last:border-b-0">
+                      <div className="flex items-center gap-2 text-xs text-slate-300">
+                        <span>{m.icon}</span>{m.label}
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className="text-[10px] text-emerald-400 font-mono">{buyCount} AL</span>
+                        <span className="text-[10px] text-slate-500">/ {count}</span>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {view === 'watchlist' && (
+        <div className="grid grid-cols-12 gap-5">
+          <div className="col-span-12 md:col-span-8 md:col-start-3">
             <ChartCard icon="⭐" title="Takip Listen (Detaylı)" badge={`${watchlist.length} VARLIK`} badgeColor="amber">
               {wlLoading ? (
                 <div className="text-center py-8 text-slate-500">Yükleniyor...</div>
@@ -709,9 +707,6 @@ export default function Scanner() {
                 </div>
               )}
             </ChartCard>
-          </div>
-          <div className="col-span-12 lg:col-span-4">
-            <AIPicksCard picks={aiPicks} onNavigate={navigateToAsset} />
           </div>
         </div>
       )}
