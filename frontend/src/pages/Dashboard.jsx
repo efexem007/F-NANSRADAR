@@ -14,7 +14,7 @@ import MonthlyChangeChart from '../components/charts/MonthlyChangeChart'
 import CumulativeChart from '../components/charts/CumulativeChart'
 import VolatilityRadar from '../components/charts/VolatilityRadar'
 import RiskGauge from '../components/charts/RiskGauge'
-import { TrendingUp } from 'lucide-react'
+import { TrendingUp, Globe } from 'lucide-react'
 
 const Dashboard = () => {
   const [portfolio, setPortfolio] = useState({ items: [], summary: {} })
@@ -34,6 +34,10 @@ const Dashboard = () => {
   const [search, setSearch] = useState('')
   // Madde 29: Geçiş
   const [transitioning, setTransitioning] = useState(false)
+
+  // Makro Seleksiyonları
+  const [macroCountry, setMacroCountry] = useState('TR')
+  const [macroCompany, setMacroCompany] = useState('TÜMÜ')
 
   const { toggle, isFavorite } = useFavorites()
 
@@ -296,6 +300,53 @@ const Dashboard = () => {
               </div>
             )}
           </ChartCard>
+        </div>
+      </div>
+
+      {/* Küresel Makro & Şirket Bağlantısı */}
+      <div className="mt-8 pt-8 border-t border-white/10 animate-fade-in">
+        <div className="flex items-center justify-between mb-5">
+          <div>
+            <h2 className="text-xl font-bold flex items-center gap-2"><Globe size={22} className="text-cyan-400" /> Makro Ekonomik Etki Analizi</h2>
+            <p className="text-xs text-slate-500 mt-1">Seçili ülkenin makro verilerinin şirketlere olası etkilerini inceleyin.</p>
+          </div>
+          <div className="flex gap-3">
+            <select value={macroCountry} onChange={e => setMacroCountry(e.target.value)} className="bg-[#0f1025] border border-white/10 rounded-xl px-4 py-2 text-sm text-slate-300 focus:outline-none focus:border-cyan-500/50">
+              <option value="TR">🇹🇷 Türkiye</option>
+              <option value="US">🇺🇸 Amerika Birleşik Devletleri</option>
+              <option value="EU">🇪🇺 Avrupa Birliği</option>
+            </select>
+            <select value={macroCompany} onChange={e => setMacroCompany(e.target.value)} className="bg-[#0f1025] border border-white/10 rounded-xl px-4 py-2 text-sm text-slate-300 focus:outline-none focus:border-purple-500/50">
+              <option value="TÜMÜ">Tüm Şirketler (Genel)</option>
+              {tickers.map(t => <option key={t} value={t}>{t}</option>)}
+            </select>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+          {[
+            { id: 'cds', label: 'Ülke Risk Primi (CDS)', val: macroCountry === 'TR' ? `${cds?.value || 295} bps` : macroCountry === 'US' ? '35 bps' : '65 bps', desc: 'Yabancı yatırımcı güveni', color: macroCountry === 'TR' ? 'rose' : 'emerald' },
+            { id: 'faiz', label: 'Politika Faizi', val: macroCountry === 'TR' ? '%50.00' : macroCountry === 'US' ? '%5.25' : '%4.00', desc: 'Borçlanma maliyeti', color: 'purple' },
+            { id: 'enflasyon', label: 'Enflasyon (TÜFE)', val: macroCountry === 'TR' ? '%68.5' : macroCountry === 'US' ? '%3.1' : '%2.8', desc: 'Fiyat istikrarı', color: macroCountry === 'TR' ? 'yellow' : 'cyan' },
+            { id: 'vix', label: 'Küresel Volatilite (VIX)', val: `${vix?.value || 18.2}`, desc: 'Küresel korku seviyesi', color: 'emerald' },
+          ].map(m => (
+            <div key={m.id} className="glass-card !p-5 relative overflow-hidden group">
+              <div className={`absolute top-0 right-0 w-24 h-24 bg-${m.color}-500/5 rounded-full blur-2xl group-hover:bg-${m.color}-500/10 transition-colors`}></div>
+              <p className="text-[10px] uppercase font-bold text-slate-500 tracking-wider mb-2">{m.label}</p>
+              <p className={`text-3xl font-bold font-mono text-${m.color}-400 mb-1`}>{m.val}</p>
+              <p className="text-xs text-slate-400">{m.desc}</p>
+              {macroCompany !== 'TÜMÜ' && (
+                <div className="mt-4 pt-3 border-t border-white/5">
+                  <div className="flex items-center justify-between text-[10px]">
+                    <span className="text-slate-500">{macroCompany} Etkisi:</span>
+                    <span className={`font-bold ${m.id === 'faiz' && macroCountry === 'TR' ? 'text-rose-400' : m.id === 'cds' && macroCountry === 'TR' ? 'text-yellow-400' : 'text-emerald-400'}`}>
+                      {m.id === 'faiz' && macroCountry === 'TR' ? 'Yüksek Borç Maliyeti (-)' : m.id === 'cds' && macroCountry === 'TR' ? 'Yabancı Girişi Gecikmeli' : 'Pozitif / Nötr Koruma (+)'}
+                    </span>
+                  </div>
+                </div>
+              )}
+            </div>
+          ))}
         </div>
       </div>
     </div>

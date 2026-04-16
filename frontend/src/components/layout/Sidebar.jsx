@@ -8,8 +8,7 @@ const links = [
   { to: '/portfolio', icon: PieChart,   label: 'Portföy' },
   { to: '/signals',   icon: TrendingUp, label: 'Sinyaller' },
   { to: '/scanner',   icon: Cpu,        label: 'AI Scanner' },
-  { to: '/backtest',  icon: Cpu,        label: 'Backtest' },
-  { to: '/macro',     icon: Globe,      label: 'Makro' },
+  { to: '/backtest',  icon: Cpu,        label: 'AI Test & Lab' },
   { to: '/settings',  icon: Settings,   label: 'Ayarlar' },
 ]
 
