@@ -7,8 +7,7 @@ const links = [
   { to: '/',          icon: Activity,   label: 'Dashboard' },
   { to: '/portfolio', icon: PieChart,   label: 'Portföy' },
   { to: '/signals',   icon: TrendingUp, label: 'Sinyaller' },
-  { to: '/scanner',   icon: Cpu,        label: 'AI Scanner' },
-  { to: '/backtest',  icon: Cpu,        label: 'AI Test & Lab' },
+  { to: '/scanner',   icon: Cpu,        label: 'AI Scanner & Lab' },
   { to: '/settings',  icon: Settings,   label: 'Ayarlar' },
 ]
 

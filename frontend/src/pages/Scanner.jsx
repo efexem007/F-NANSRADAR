@@ -8,6 +8,7 @@ import {
   Layers, Target, ShieldCheck, AlertTriangle, Plus, X, Clock
 } from 'lucide-react';
 import ChartCard from '../components/ChartCard';
+import Backtest from './Backtest';
 
 // ═══════════════════════════════════════════════════════════════════════════
 // MARKETS CONFIG
@@ -313,6 +314,7 @@ function MarketSummaryBar({ results }) {
 
 export default function Scanner() {
   const navigate = useNavigate();
+  const [activeTab, setActiveTab] = useState('scanner'); // 'scanner' vs 'lab'
   const [activeMarket, setActiveMarket] = useState('all');
   const [scanning, setScanning] = useState(false);
   const [scanResults, setScanResults] = useState(null);
@@ -467,8 +469,8 @@ export default function Scanner() {
             <Globe className="w-5 h-5 text-white" />
           </div>
           <div>
-            <div className="text-xl font-bold text-white">Universal Scanner v6.0</div>
-            <div className="text-xs text-slate-400 -mt-0.5">Hisse • Döviz • Kripto • Emtia • Endeks — Tek Platform</div>
+            <div className="text-xl font-bold text-white">AI Scanner & Lab v6.0</div>
+            <div className="text-xs text-slate-400 -mt-0.5">Toplu Tarama • Takip Listesi • AI Algoritmik Testler</div>
           </div>
         </div>
         <div className="flex gap-2">
@@ -484,13 +486,21 @@ export default function Scanner() {
           >
             <Star size={14} className="inline mr-1" /> Takip ({watchlist.length})
           </button>
+          <button
+            onClick={() => setView('lab')}
+            className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${view === 'lab' ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/30' : 'text-slate-500 hover:text-slate-300'}`}
+          >
+            <Cpu size={14} className="inline mr-1" /> AI Lab
+          </button>
         </div>
       </div>
 
       {/* Market Summary Bar */}
-      {scanResults && <MarketSummaryBar results={scanResults.results} />}
+      {view !== 'lab' && scanResults && <MarketSummaryBar results={scanResults.results} />}
 
-      {view === 'scanner' && (
+      {view === 'lab' ? (
+        <Backtest />
+      ) : view === 'scanner' ? (
         <>
           {/* Market Tabs + Scan Button */}
           <div className="flex items-center justify-between flex-wrap gap-3">
@@ -615,7 +625,7 @@ export default function Scanner() {
             </div>
           </div>
         </>
-      )}
+      ) : null}
 
       {view === 'ai' && (
         <div className="grid grid-cols-12 gap-5">

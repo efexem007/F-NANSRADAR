@@ -202,10 +202,36 @@ export async function analyzeStock(ticker, period = '3mo') {
   const closes = priceData.map(p => p.close);
 
   // ─── Veritabanından temel veri çek ─────────────────────────────────────────
-  const stockRecord = await prisma.stock.findUnique({
-    where: { ticker },
+  let stockRecord = await prisma.stock.findUnique({
+    where: { ticker: ticker.toUpperCase() },
     include: { ratios: true, fundamental: { orderBy: { period: 'desc' }, take: 2 } }
   }).catch(() => null);
+
+  // Otomatik ekleme (Auto-Discovery) - Eğer veritabanında yoksa ama Yahoo'dan geldiyse DB'ye yaz
+  if (!stockRecord && priceData && priceData.length > 0) {
+    try {
+      stockRecord = await prisma.stock.create({
+        data: {
+          ticker: ticker.toUpperCase(),
+          name: ticker.toUpperCase() + ' (Otomatik Eklendi)',
+          type: ticker.includes('-USD') ? 'crypto' : ticker.includes('=X') ? 'forex' : 'bist', // Tahmini tip ataması
+          exchange: ticker.includes('-USD') ? 'CCC' : 'IS',
+          currency: ticker.includes('-USD') ? 'USD' : 'TRY',
+          source: 'yahoo',
+          marketCap: 0,
+          sector: 'Unknown',
+          industry: 'Unknown',
+          description: 'Sistem tarafından ilk analiz esnasında otomatik araştırılıp keşfedildi.',
+          isActive: true
+        },
+        include: { ratios: true, fundamental: true }
+      });
+      console.log(`[Auto-Discovery] Yeni varlık sisteme eklendi: ${ticker}`);
+    } catch (e) {
+      console.warn(`[Auto-Discovery] Varlık eklenirken hata: ${ticker}`, e.message);
+    }
+  }
+
   const stockRatios = stockRecord?.ratios || null;
   const fundamentals = stockRecord?.fundamental || [];
   const sector = stockRecord?.sector || 'Unknown';
