@@ -99,48 +99,81 @@ function interpretTrend(priceData) {
 }
 
 /**
- * Genel AI yorumu üret
+ * Genel AI yorumu üret (ÇOK DETAYLI VE EĞİTİCİ EKSİKSİZ FORMAT)
  */
 function generateAICommentary(data) {
-  const { rsi, macd: macdInterp, sma, bollinger, volume, trend, macroData, finalScore, signal } = data;
+  const { rsi, macd: macdInterp, sma, bollinger, volume, trend, macroData, finalScore, signal, priceImpact, currentPrice } = data;
   
+  const extractImpact = (factorName) => {
+    if (!priceImpact || !priceImpact.categories) return null;
+    for (const cat of priceImpact.categories) {
+      const match = cat.factors.find(f => f.name.toLowerCase().includes(factorName.toLowerCase()));
+      if (match) return match;
+    }
+    return null;
+  };
+
   const lines = [];
-  
-  // Genel karar
+
+  // 1. Ana Karar Özeti
+  lines.push(`🎯 **KAPSANLI YZ STRATEJİ VE YÖN KARARI**`);
   if (signal.includes('GÜÇLÜ AL') || signal.includes('GUCLU AL')) {
-    lines.push(`📈 **Güçlü Alım Sinyali:** Bu hisse, birden fazla teknik göstergede eş zamanlı olumlu sinyal veriyor.`);
+    lines.push(`Genel Yön: **GÜÇLÜ AL SİNYALİ**. Algoritmamız tüm zaman dilimlerinde güçlü bir yukarı hacim tespit etti. Bu aşamada düşüşler alım fırsatı olarak değerlendirilebilir.`);
   } else if (signal.includes('AL')) {
-    lines.push(`✅ **Alım Sinyali:** Teknik görünüm genel olarak olumlu.`);
-  } else if (signal.includes('GÜÇLÜ SAT') || signal.includes('GUCLU SAT')) {
-    lines.push(`📉 **Güçlü Satış Sinyali:** Birden fazla göstergede risk uyarısı.`);
+    lines.push(`Genel Yön: **AL SİNYALİ**. Temel indikatörler pozitif. Görece güvenli bir giriş pozisyonunda.`);
   } else if (signal.includes('SAT')) {
-    lines.push(`⚠️ **Satış Sinyali:** Teknik görünüm olumsuz.`);
+    lines.push(`Genel Yön: **SAT SİNYALİ**. Negatif metrikler çoğunlukta. Mevcut pozisyonların gözden geçirilmesi ve küçültülmesi önerilir.`);
+  } else if (signal.includes('GÜÇLÜ SAT') || signal.includes('GUCLU SAT')) {
+    lines.push(`Genel Yön: **GÜÇLÜ SAT SİNYALİ**. Ciddi riskler taşıyor. Teknik kırılımlar veya yoğun satış baskısı var, alımdan uzak durulmalı.`);
   } else {
-    lines.push(`⏸ **Bekle:** Hisse karışık sinyaller veriyor, net bir yön beklenmeli.`);
+    lines.push(`Genel Yön: **BEKLE (NÖTR)**. Hisse fiyatı kararsız bir bölgede. Yeni bir aksiyon almadan önce trendin netleşmesi beklenmelidir.`);
   }
+  lines.push(`\n---\n`);
 
-  // Öne çıkan faktörler
-  const positives = [];
-  const negatives = [];
+  // 2. Teknik Eğitici ve Detaylı Durumlar
+  lines.push(`📚 **TEKNİK İNDİKATÖR ANALİZLERİ VE BEKLENEN FİYAT ETKİLERİ**`);
+  
+  // RSI
+  const rsiImpact = extractImpact('RSI');
+  lines.push(`\n**1. RSI (Göreceli Güç Endeksi) Nedir?**
+_Nasıl Çalışır:_ RSI, fiyatın hızını ve yönünü ölçen 0-100 arası bir osilatördür. 30'un altı hissenin "Aşırı Satıldığını" (ucuzladığını), 70'in üstü ise "Aşırı Alındığını" (pahalandığını) gösterir.
+_Hissedeki Durum:_ ${rsi.comment}
+_Beklenen Fiyat Etkisi:_ Yön **${rsiImpact && rsiImpact.impactPct >= 0 ? '+' : '-'}** | Tahmini Değişim Etkisi: **%${rsiImpact ? Math.abs(rsiImpact.impactPct).toFixed(2) : '0.00'}**`);
 
-  if (rsi.score >= 65) positives.push('RSI alım bölgesinde');
-  if (rsi.score <= 35) negatives.push('RSI satış bölgesinde');
-  if (macdInterp.score >= 65) positives.push('MACD yükseliş momentumu var');
-  if (macdInterp.score <= 35) negatives.push('MACD düşüş trendiyle uyumlu');
-  if (sma.score >= 65) positives.push('Golden Cross formasyonu saptandı');
-  if (sma.score <= 35) negatives.push('Death Cross baskısı devam ediyor');
-  if (bollinger.score >= 70) positives.push('Bollinger alt bölgesinde - teknik destek');
-  if (bollinger.score <= 30) negatives.push('Bollinger üst bölgesi aşıldı');
-  if (volume.score >= 65) positives.push('Artan hacim trend teyidi sağlıyor');
-  if (macroData.cds < 250) positives.push('Türkiye CDS riskleri düşük seviyede');
-  if (macroData.cds > 350) negatives.push('Yüksek CDS - makro risk yüksek');
-  if (macroData.vix < 20) positives.push('VIX düşük - piyasa sakin');
-  if (macroData.vix > 30) negatives.push('VIX yüksek - küresel belirsizlik var');
+  // MACD
+  const macdImp = extractImpact('MACD');
+  lines.push(`\n**2. MACD (Hareketli Ortalamalar Yakınsaması) Nedir?**
+_Nasıl Çalışır:_ İki farklı hareketli ortalamanın (genelde 12 ve 26 günlük) birbiriyle olan ilişkisini ölçer. MACD çizgisi Sinyal çizgisini yukarı keserse "AL", aşağı keserse "SAT" anlamına gelir.
+_Hissedeki Durum:_ ${macdInterp.comment}
+_Beklenen Fiyat Etkisi:_ Yön **${macdImp && macdImp.impactPct >= 0 ? '+' : '-'}** | Tahmini Değişim Etkisi: **%${macdImp ? Math.abs(macdImp.impactPct).toFixed(2) : '0.00'}**`);
 
-  if (positives.length > 0) lines.push(`\n**Olumlu Faktörler:** ${positives.join(' • ')}`);
-  if (negatives.length > 0) lines.push(`**Risk Faktörleri:** ${negatives.join(' • ')}`);
+  // SMA (Golden/Death Cross)
+  const smaImp = extractImpact('Trend');
+  lines.push(`\n**3. SMA (Hareketli Ortalamalar - Golden/Death Cross) Nedir?**
+_Nasıl Çalışır:_ Kısa vadeli (50 günlük) hareketli ortalamanın, uzun vadeli (200 veya 100 günlük) hareketli ortalamayı aşağıdan yukarı kesmesine Golden Cross (Güçlü Yükseliş); yukarıdan aşağı kesmesine Death Cross (Güçlü Düşüş) denir.
+_Hissedeki Durum:_ ${sma.comment}
+_Beklenen Fiyat Etkisi:_ Yön **${smaImp && smaImp.impactPct >= 0 ? '+' : '-'}** | Tahmini Değişim Etkisi: **%${smaImp ? Math.abs(smaImp.impactPct).toFixed(2) : '0.00'}**`);
 
-  lines.push(`\n_Algoritma skoru: **${finalScore}/100** (Teknik %35 + Temel %25 + Makro %20 + Hacim/Risk %20)_`);
+  // Bollinger
+  const bolImp = extractImpact('Bollinger');
+  lines.push(`\n**4. Bollinger Bantları Nedir?**
+_Nasıl Çalışır:_ Fiyatın volatilitesini ölçen bantlardır. Fiyat üst banda değerse hissenin aşırı değerlendiği, alt banda değerse çok ucuzladığı ve tepki alımı geleceği düşünülür.
+_Hissedeki Durum:_ ${bollinger.comment}
+_Beklenen Fiyat Etkisi:_ Yön **${bolImp && bolImp.impactPct >= 0 ? '+' : '-'}** | Tahmini Değişim Etkisi: **%${bolImp ? Math.abs(bolImp.impactPct).toFixed(2) : '0.00'}**`);
+
+  // Hacim
+  lines.push(`\n**5. Hacim (Volume) Analizi Nedir?**
+_Nasıl Çalışır:_ Hacim, hissede dönen para miktarıdır. Bir yükseliş veya düşüş yüksek hacimle gerçekleşiyorsa işlem "onaylanmış" (güvenilir) sayılır. Sığ hacimli hareketler genelde tuzaktır.
+_Hissedeki Durum:_ ${volume.comment}`);
+
+  lines.push(`\n---\n`);
+  
+  // 3. Toplam Analiz Özeti ve Puan
+  lines.push(`🛡️ **GENEL RİSK VE MAKRO FAKTÖRLER**`);
+  lines.push(`Bu hisseyi etkileyen dış faktörlere bakıldığında; Türkiye CDS risk primleri (${macroData.cds} bps) ve Küresel VIX Korku Endeksi (${macroData.vix}) baz alındığında sistemimiz piyasa geneli için ${macroData.cds > 300 ? 'belirli makro riskler seziyor' : 'olumlu, sakin bir makro çevre tespit etmiştir'}.`);
+  if (priceImpact) {
+      lines.push(`\n💡 **Nihai Model Çıktısı:** Bu değişkenler ışığında hissenin ideal / adil değerinin **${priceImpact.fairValue.toFixed(2)} TL** olabileceği hesaplanmış olup, toplam formül etkimiz fiyat yönünde **${priceImpact.totalImpactPct > 0 ? '+' : ''}${priceImpact.totalImpactPct}%** olarak saptanmıştır.`);
+  }
 
   return lines.join('\n');
 }
@@ -273,11 +306,32 @@ export async function analyzeStock(ticker, period = '3mo') {
   const regimeForImpact = { name: regime.regimeName };
   const impactAnalysis = calculateImpactAnalysis(indicators, macroForImpact, regimeForImpact, riskReport, fundScore);
 
+  // ═══ v5.2: Fiyat Etki Analizi (TL + %) ═══
+  const priceImpact = calculatePriceImpact({
+    currentPrice,
+    var95: riskReport.var95,
+    annualSigma: riskReport.garch?.annualSigma,
+    kaldirac: stockRatios?.leverage,
+    nfbFavok: stockRatios?.nfbToEbitda,
+    cds: macro.cds,
+    vix: macro.vix,
+    indicators: {
+      rsi: { raw: rsi14Raw, ...rsiInterp },
+      macd: { raw: macdRaw, ...macdInterp },
+      sma: { raw: { sma20: sma20Raw, sma50: sma50Raw }, ...smaInterp },
+      bollinger: { raw: bollingerRaw, ...bollingerInterp },
+      volume: volumeInterp,
+    },
+    predictions,
+    fundamentalScore: fundScore,
+    fk: stockRatios?.fk,
+  });
+
   // Commentary
   const commentary = generateAICommentary({
     rsi: rsiInterp, macd: macdInterp, sma: smaInterp, bollinger: bollingerInterp,
     volume: volumeInterp, trend: trendInterp, macroData: macro, finalScore, signal,
-    regime, ofi: ofiResult, riskReport, fracDiff: fracDiffResult
+    regime, ofi: ofiResult, riskReport, fracDiff: fracDiffResult, priceImpact, currentPrice
   });
 
   // ─── TAHMİN GEÇMİŞİ ─────────────────────────────────────────────────────
@@ -352,25 +406,7 @@ export async function analyzeStock(ticker, period = '3mo') {
       vix: macro.vix,
     }),
     // ═══ v5.2: Fiyat Etki Analizi (TL + %) ═══
-    priceImpact: calculatePriceImpact({
-      currentPrice,
-      var95: riskReport.var95,
-      annualSigma: riskReport.garch?.annualSigma,
-      kaldirac: stockRatios?.leverage,
-      nfbFavok: stockRatios?.nfbToEbitda,
-      cds: macro.cds,
-      vix: macro.vix,
-      indicators: {
-        rsi: { raw: rsi14Raw, ...rsiInterp },
-        macd: { raw: macdRaw, ...macdInterp },
-        sma: { raw: { sma20: sma20Raw, sma50: sma50Raw }, ...smaInterp },
-        bollinger: { raw: bollingerRaw, ...bollingerInterp },
-        volume: volumeInterp,
-      },
-      predictions,
-      fundamentalScore: fundScore,
-      fk: stockRatios?.fk,
-    }),
+    priceImpact: priceImpact,
     analysisTimestamp: new Date().toISOString(),
   };
 

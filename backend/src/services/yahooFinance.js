@@ -2,7 +2,10 @@ import YahooFinance from 'yahoo-finance2';
 const yahooFinance = new YahooFinance();
 export const fetchStockPrices = async (ticker, period = '3mo', interval = '1d') => {
   try {
-    const query = `${ticker}.IS`;
+    let query = ticker.toUpperCase();
+    if (!query.includes('.') && !query.includes('-') && !query.includes('=') && !query.includes('^')) {
+      query = `${query}.IS`;
+    }
     const period1 = new Date();
     switch(period) {
       case '1mo': period1.setMonth(period1.getMonth() - 1); break;
@@ -31,6 +34,13 @@ export const fetchStockPrices = async (ticker, period = '3mo', interval = '1d') 
 };
 
 export const fetchCurrentPrice = async (ticker) => {
-  try { const quote = await yahooFinance.quote(`${ticker}.IS`); return quote.regularMarketPrice; }
+  try {
+    let query = ticker.toUpperCase();
+    if (!query.includes('.') && !query.includes('-') && !query.includes('=') && !query.includes('^')) {
+      query = `${query}.IS`;
+    }
+    const quote = await yahooFinance.quote(query);
+    return quote.regularMarketPrice;
+  }
   catch (error) { return null; }
 };
