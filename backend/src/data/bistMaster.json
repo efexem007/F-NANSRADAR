@@ -1,0 +1,49 @@
+{
+  "version": "1.0.0",
+  "lastUpdated": "2026-04-17",
+  "totalStocks": 512,
+  "indices": {
+    "XU100": {
+      "name": "BIST 100",
+      "description": "En yüksek piyasa değerine sahip 100 şirket",
+      "symbol": "XU100.IS"
+    },
+    "XU030": {
+      "name": "BIST 30",
+      "description": "En yüksek piyasa değerine sahip 30 şirket",
+      "symbol": "XU030.IS"
+    },
+    "XBANK": {
+      "name": "BIST Banka",
+      "description": "Bankacılık sektörü endeksi",
+      "symbol": "XBANK.IS"
+    },
+    "XHOLD": {
+      "name": "BIST Holding",
+      "description": "Holding & yatırım şirketleri endeksi",
+      "symbol": "XHOLD.IS"
+    }
+  },
+  "sectorMapping": {
+    "Bankacılık": ["AKBNK", "GARAN", "HALKB", "ISCTR", "VAKBN", "YKBNK", "SKBNK", "ALBRK", "TSKB", "KLNMA", "ICBCT"],
+    "Holding & Yatırım": ["SAHOL", "KCHOL", "DOHOL", "AGHOL", "GLYHO", "TAVHL", "NTHOL", "ENKAI", "INVEO", "GOZDE", "AVHOL", "HSYHO", "EUHOL"],
+    "Demir & Çelik": ["EREGL", "KRDMD", "KRDMA", "KRDMB", "BRSAN", "DMSAS", "CELHA", "CEMTS", "BURCE", "CEMAS"],
+    "Otomotiv": ["TOASO", "FROTO", "DOAS", "OTKAR", "ASUZU", "BRISA", "KORDS"],
+    "Perakende & Tüketim": ["BIMAS", "SOKM", "MGROS", "CCOLA", "ULKER", "BANVT", "TBORG", "PNSUT", "TATGD", "KNFRT"],
+    "Enerji": ["AKSEN", "AKENR", "ENKAI", "ENJSA", "AYDEM", "AYEN", "ZOREN", "CWENE", "NATEN", "IZENR"],
+    "Havacılık & Savunma": ["THYAO", "ASELS", "PGSUS", "CLEBI"],
+    "Telekomünikasyon": ["TCELL", "TTKOM", "NETAS"],
+    "Teknoloji": ["LOGO", "INDES", "ARENA", "FONET", "DGATE", "KRONT", "SMART", "ESCOM", "PAPIL", "INFO"],
+    "Kimya & Petrokimya": ["PETKM", "TUPRS", "SASA", "ALKIM", "BAGFS", "HEKTS", "GUBRF", "AKSA"],
+    "İnşaat & Gayrimenkul": ["EKGYO", "ISGYO", "HLGYO", "KGYO", "TRGYO", "ALGYO", "SRVGY", "PSGYO", "VKGYO"],
+    "Cam & Seramik": ["TRKCM", "SISE", "BUCIM", "CIMSA", "BSOKE", "NUHCM", "BTCIM", "OYAKC"],
+    "Tekstil & Giyim": ["MAVI", "ARSAN", "BOSSA", "DESA", "YUNSA", "BRKSN", "ATEKS"],
+    "Madencilik": ["KOZAL", "KOZAA", "IPEKE", "KRVGD"],
+    "Gıda & İçecek": ["AEFES", "CCOLA", "ULKER", "TATGD", "BANVT", "FRIGO", "PNSUT", "ERSU", "TUKAS", "PETUN"],
+    "Sağlık": ["DEVA", "ECILC", "SELEC"],
+    "Sigorta": ["AKGRT", "ANSGR", "AGESA", "ANHYT", "TURSG"],
+    "Spor": ["BJKAS", "FENER", "GSRAY", "TSPOR"]
+  },
+  "bist30": ["AKBNK", "ARCLK", "ASELS", "BIMAS", "EKGYO", "ENKAI", "EREGL", "FROTO", "GARAN", "GUBRF", "HALKB", "ISCTR", "KCHOL", "KOZAA", "KOZAL", "KRDMD", "MGROS", "ODAS", "PETKM", "PGSUS", "SAHOL", "SASA", "SISE", "TAVHL", "TCELL", "THYAO", "TKFEN", "TOASO", "TUPRS", "YKBNK"],
+  "bist100Additions": ["AEFES", "AGESA", "AGHOL", "AKCNS", "AKSA", "AKSEN", "ALFAS", "ALKIM", "ARSAN", "ASTOR", "AYDEM", "AYGAZ", "BAGFS", "BRISA", "BRYAT", "CCOLA", "CIMSA", "DOAS", "DOHOL", "ECILC", "ENJSA", "GESAN", "GLYHO", "GOODY", "HEKTS", "HUBVC", "INDES", "IPEKE", "ISMEN", "ISGYO", "KGYO", "KLKIM", "KLNMA", "KONTR", "KORDS", "LOGO", "MAVI", "NTHOL", "NUHCM", "OTKAR", "OYAKC", "SOKM", "TATGD", "TKNSA", "TMSN", "TRGYO", "TTKOM", "TTRAK", "TURSG", "ULKER", "VAKBN", "VESBE", "VESTL", "ZOREN"]
+}

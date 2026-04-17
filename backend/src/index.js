@@ -5,6 +5,9 @@ import dotenv from 'dotenv';
 import { createServer } from 'http';
 import { Server as SocketIO } from 'socket.io';
 import cron from 'node-cron';
+import swaggerUi from 'swagger-ui-express';
+import YAML from 'yamljs';
+
 
 import authRoutes      from './routes/auth.js';
 import portfolioRoutes from './routes/portfolio.js';
@@ -22,6 +25,7 @@ import aiRoutes        from './routes/ai.js';
 import predictionRoutes from './routes/prediction.js';
 import analysisRoutes   from './routes/analysis.js';
 import adminCacheRoutes from './routes/admin/cache.js';
+import batchRoutes      from './routes/batch.js';
 
 import { defaultLimiter, authLimiter, stockLimiter, scanLimiter, macroLimiter, reportLimiter, universalLimiter } from './middleware/smartRateLimit.js';
 import { errorHandler, notFoundHandler } from './middleware/errorHandler.js';
@@ -68,6 +72,15 @@ app.use('/api/ai',                          aiRoutes);
 app.use('/api/prediction',                  predictionRoutes);
 app.use('/api/analysis',                    analysisRoutes);
 app.use('/api/admin/cache',                 adminCacheRoutes);
+app.use('/api/batch',                        batchRoutes);
+
+// ─── API Documentation (Swagger) ──────────────────────────────────────────
+try {
+  const swaggerDocument = YAML.load('./swagger.yaml');
+  app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerDocument));
+} catch (e) {
+  console.log('Swagger dosyası yüklenemedi, API-docs devre dışı.');
+}
 
 // ─── Health Check ────────────────────────────────────────────────────────
 app.get('/api/health', (req, res) => {

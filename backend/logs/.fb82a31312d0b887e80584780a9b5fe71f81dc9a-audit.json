@@ -1,0 +1,20 @@
+{
+    "keep": {
+        "days": true,
+        "amount": 14
+    },
+    "auditLog": "logs\\.fb82a31312d0b887e80584780a9b5fe71f81dc9a-audit.json",
+    "files": [
+        {
+            "date": 1776343921065,
+            "name": "logs\\finansradar-2026-04-16.log",
+            "hash": "a42390cf91340068be5f3a5dd775c40f97a2e66aea9782a3e219230d17a6eee8"
+        },
+        {
+            "date": 1776415687218,
+            "name": "logs\\finansradar-2026-04-17.log",
+            "hash": "cc91d53439b04274f566f9f9429fa2adef0a6b3a008c9b043e8b6d6f38e877bb"
+        }
+    ],
+    "hashType": "sha256"
+}

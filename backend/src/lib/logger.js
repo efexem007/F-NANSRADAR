@@ -7,6 +7,7 @@
 let winston;
 try {
   winston = (await import('winston')).default;
+  await import('winston-daily-rotate-file');
 } catch {
   winston = null;
 }
@@ -45,6 +46,13 @@ if (winston) {
       new transports.Console({
         format: combine(colorize(), timestamp({ format: 'HH:mm:ss' }), consoleFormat),
       }),
+      new transports.DailyRotateFile({
+        filename: 'logs/finansradar-%DATE%.log',
+        datePattern: 'YYYY-MM-DD',
+        zippedArchive: true,
+        maxSize: '20m',
+        maxFiles: '14d'
+      })
     ],
   });
 } else {

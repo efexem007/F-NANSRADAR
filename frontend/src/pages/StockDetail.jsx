@@ -45,13 +45,42 @@ function IndicatorBar({ label, status, score, color, comment, icon: Icon }) {
 }
 
 function AICommentary({ text }) {
-  const lines = text.split('\n').filter(Boolean)
+  const sections = text.split('\n---\n').filter(Boolean);
   return (
-    <div className="space-y-2">
-      {lines.map((line, i) => {
-        const isBold = line.startsWith('**') || line.startsWith('📈') || line.startsWith('✅') || line.startsWith('⚠️') || line.startsWith('📉') || line.startsWith('⏸')
-        const clean = line.replace(/\*\*/g, '').replace(/_/g, '')
-        return <p key={i} className={`text-sm leading-relaxed ${isBold ? 'text-white font-semibold' : 'text-slate-400'}`}>{clean}</p>
+    <div className="space-y-6">
+      {sections.map((section, idx) => {
+        const lines = section.split('\n').filter(Boolean);
+        return (
+          <div key={idx} className="space-y-2">
+            {lines.map((line, i) => {
+              const isTitle = line.startsWith('🎯') || line.startsWith('📚') || line.startsWith('🛡️');
+              const isSubTitle = line.startsWith('**');
+              let clean = line.replace(/\*\*/g, '').replace(/_/g, '');
+              
+              if (isTitle) {
+                return <h3 key={i} className="text-lg font-bold text-white border-b border-white/10 pb-2 mb-3 mt-4">{clean}</h3>;
+              }
+              if (isSubTitle) {
+                return <h4 key={i} className="text-[15px] font-semibold text-purple-300 mt-5 mb-2">{clean}</h4>;
+              }
+              if (clean.includes(':')) {
+                // Sadece spesifik keywordlerde ikiye böl
+                if (clean.startsWith('Nasıl Çalışır') || clean.startsWith('Hissedeki Durum') || clean.startsWith('Beklenen Fiyat Etkisi') || clean.startsWith('Genel Yön')) {
+                  const firstColon = clean.indexOf(':');
+                  const key = clean.slice(0, firstColon);
+                  const val = clean.slice(firstColon + 1);
+                  return (
+                    <div key={i} className="text-[13px] flex items-start gap-2 ml-3 mb-1.5 bg-white/5 p-2 rounded-lg">
+                      <span className="text-slate-400 font-semibold shrink-0">{key}:</span>
+                      <span className="text-slate-200">{val}</span>
+                    </div>
+                  );
+                }
+              }
+              return <p key={i} className="text-sm leading-relaxed text-slate-400 ml-1">{clean}</p>;
+            })}
+          </div>
+        );
       })}
     </div>
   )

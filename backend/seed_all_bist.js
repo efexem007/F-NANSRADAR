@@ -1,0 +1,41 @@
+import { PrismaClient } from '@prisma/client';
+
+const prisma = new PrismaClient();
+
+const bistStocks = [
+  'A1CAP', 'ACSEL', 'ADEL', 'ADESE', 'AEFES', 'AFYON', 'AGESA', 'AGHOL', 'AGROT', 'AHGAZ', 'AKBNK', 'AKCNS', 'AKENR', 'AKFGY', 'AKFYE', 'AKGRT', 'AKMGY', 'AKSA', 'AKSEN', 'AKSGY', 'ALARK', 'ALBRK', 'ALCAR', 'ALCTL', 'ALFAS', 'ALGYO', 'ALKA', 'ALKIM', 'ALMAD', 'ALTNY', 'ANELE', 'ANGEN', 'ANHYT', 'ANSGR', 'ARASE', 'ARCLK', 'ARDYZ', 'ARENA', 'ARSAN', 'ARTMS', 'ARZUM', 'ASELS', 'ASGYO', 'ASTOR', 'ASUZU', 'ATAGY', 'ATAKP', 'ATATP', 'ATEKS', 'ATSYH', 'AVGYO', 'AVHOL', 'AVPGY', 'AYCES', 'AYDEM', 'AYEN', 'AYES', 'AYGAZ', 'AZTEK', 'BAGFS', 'BAKAB', 'BALAT', 'BANVT', 'BARMA', 'BASGZ', 'BAYRK', 'BEGYO', 'BERA', 'BEYAZ', 'BFREN', 'BIENY', 'BIGCH', 'BIMAS', 'BINHO', 'BIOEN', 'BIZIM', 'BJKAS', 'BLCYT', 'BMSCH', 'BMSTL', 'BNTAS', 'BOBET', 'BORLS', 'BOSSA', 'BRISA', 'BRKO', 'BRKSN', 'BRKVY', 'BRLSM', 'BRMEN', 'BRSAN', 'BRYAT', 'BSOKE', 'BTCIM', 'BUCIM', 'BURCE', 'BURVA', 'BVSAN', 'BYDNR', 'CANTE', 'CASA', 'CATES', 'CCOLA', 'CELHA', 'CEMAS', 'CEMTS', 'CEOEM', 'CIMSA', 'CLEBI', 'CMBTN', 'CMENT', 'CONSE', 'COSMO', 'CRDFA', 'CRFSA', 'CUSAN', 'CVKMD', 'CWENE', 'DAGHL', 'DAGI', 'DAPGM', 'DARDL', 'DERHL', 'DERIM', 'DESA', 'DESPC', 'DEVA', 'DGATE', 'DGGYO', 'DGNMO', 'DIRIT', 'DITAS', 'DMRGD', 'DMSAS', 'DOAS', 'DOBUR', 'DOCO', 'DOFER', 'DOGUB', 'DOHOL', 'DOKTA', 'DURDO', 'DYOBY', 'DZGYO', 'EBEBK', 'ECILC', 'ECZYT', 'EDATA', 'EDIP', 'EGEEN', 'EGEPO', 'EGGUB', 'EGPRO', 'EGSER', 'EKGYO', 'EKIZ', 'EKOS', 'EKSUN', 'ELITE', 'EMKEL', 'EMNIS', 'ENERY', 'ENJSA', 'ENKAI', 'ENTRA', 'EPLAS', 'ERBOS', 'ERCB', 'EREGL', 'ERGLI', 'ERSU', 'ESCAR', 'ESCOM', 'ESEN', 'ETILR', 'ETYAT', 'EUHOL', 'EUKYO', 'EUPWR', 'EUREN', 'EUYO', 'EYGYO', 'FADE', 'FENER', 'FLAP', 'FMIZP', 'FONET', 'FORMT', 'FORTE', 'FRIGO', 'FROTO', 'FZLGY', 'GARAN', 'GARFA', 'GENTS', 'GEREL', 'GESAN', 'GIPTA', 'GLBMD', 'GLCVY', 'GLRYH', 'GLYHO', 'GMTAS', 'GOKNR', 'GOLTS', 'GOODY', 'GOZDE', 'GRNYO', 'GRTRK', 'GSDDE', 'GSDHO', 'GSRAY', 'GUBRF', 'GWIND', 'HALKB', 'HATEK', 'HATSN', 'HDFGS', 'HEDEF', 'HEKTS', 'HKTM', 'HLGYO', 'HRZYO', 'HSYHO', 'HUBVC', 'HUNER', 'HURGZ', 'ICBCT', 'ICUGS', 'IDGYO', 'IEYHO', 'IHAAS', 'IHEVA', 'IHGZT', 'IHLAS', 'IHLGM', 'IHYAY', 'IMASM', 'INDES', 'INFO', 'INGRM', 'INTEM', 'INVEO', 'INVES', 'IPEKE', 'ISBTR', 'ISCTR', 'ISDMR', 'ISFIN', 'ISGSY', 'ISGYO', 'ISKPL', 'ISKUR', 'ISMEN', 'ISSEN', 'ISYAT', 'IZENR', 'IZFAS', 'IZINV', 'IZMDC', 'JANTS', 'KAPLM', 'KAREL', 'KARYE', 'KASTN', 'KATMR', 'KAYSE', 'KCAER', 'KCHOL', 'KENT', 'KERVN', 'KERVT', 'KFEIN', 'KGYO', 'KIMMR', 'KLKIM', 'KLMSN', 'KLNMA', 'KLRHO', 'KLSER', 'KMPUR', 'KNFRT', 'KOCMT', 'KONKA', 'KONTR', 'KONYA', 'KOPOL', 'KORDS', 'KOZAA', 'KOZAL', 'KRDMA', 'KRDMB', 'KRDMD', 'KRGYO', 'KRONT', 'KRPLS', 'KRSTL', 'KRTEK', 'KRVGD', 'KSTUR', 'KTLEV', 'KTSKR', 'KUTPO', 'KUVVA', 'KUYAS', 'KZBGY', 'KZGYO', 'LIDER', 'LINK', 'LKMNH', 'LOGO', 'LRSHO', 'MAALT', 'MACKO', 'MACRO', 'MAGEN', 'MAKIM', 'MAKTK', 'MANAS', 'MARKA', 'MARTI', 'MAVI', 'MEDTR', 'MEGAP', 'MEKAG', 'MEPET', 'MERCN', 'MERIT', 'MERKO', 'METRO', 'METUR', 'MGROS', 'MHRGY', 'MIATK', 'MIPAZ', 'MMCAS', 'MNDRS', 'MNDTR', 'MOBTL', 'MOGAN', 'MPARK', 'MRGYO', 'MRSHL', 'MSGYO', 'MTRKS', 'MTRYO', 'MUGHL', 'MZHLD', 'NATEN', 'NETAS', 'NIBAS', 'NTGAZ', 'NTHOL', 'NUGYO', 'NUHCM', 'OBAMS', 'OBASE', 'ODAS', 'OFFIC', 'ONCSM', 'ORCAY', 'ORGE', 'ORMA', 'OSMEN', 'OSTIM', 'OTKAR', 'OTTO', 'OYAKC', 'OYAYO', 'OYLUM', 'OYYAT', 'OZGYO', 'OZKGY', 'OZRDN', 'OZSUB', 'PAGYO', 'PAMEL', 'PAPIL', 'PARSN', 'PASEU', 'PATEK', 'PCILT', 'PEGYO', 'PEKGY', 'PENGD', 'PENTI', 'PETKM', 'PETUN', 'PGSUS', 'PINSU', 'PKART', 'PKENT', 'PLAGE', 'PLTUR', 'PNLSN', 'PNSUT', 'POLHO', 'POLTK', 'PRDGS', 'PRKAB', 'PRKME', 'PRZMA', 'PSGYO', 'PSOTC', 'QUAGR', 'RALYH', 'RAYSG', 'REEDR', 'RNPOL', 'RODRG', 'RTALB', 'RUBNS', 'RYGYO', 'RYSAS', 'SAFKR', 'SAHOL', 'SAMAT', 'SANEL', 'SANFM', 'SANKO', 'SARKY', 'SASA', 'SAYAS', 'SEKFK', 'SEKUR', 'SELEC', 'SELGD', 'SELVA', 'SEYKM', 'SILVR', 'SKEAS', 'SKBNK', 'SKTAS', 'SMART', 'SMRTG', 'SNGYO', 'SNICA', 'SNKRN', 'SNPAM', 'SOKE', 'SOKM', 'SONME', 'SRVGY', 'SUMAS', 'SUNTK', 'SURGY', 'SUWEN', 'TABGD', 'TARKM', 'TATEN', 'TATGD', 'TAVHL', 'TBORG', 'TCELL', 'TDGYO', 'TEKTU', 'TERA', 'TETMT', 'TEZOL', 'TGSAS', 'THYAO', 'TKFEN', 'TKNSA', 'TLMAN', 'TMPOL', 'TMSN', 'TOASO', 'TRCAS', 'TRGYO', 'TRILC', 'TSGYO', 'TSKB', 'TSPOR', 'TTKOM', 'TTRAK', 'TUCLK', 'TUKAS', 'TUPRS', 'TUREX', 'TURGG', 'TURSG', 'UFUK', 'ULAS', 'ULKER', 'ULUFA', 'ULUSE', 'ULUUN', 'UMPAS', 'UNLU', 'USAK', 'VAKBN', 'VAKFN', 'VAKKO', 'VANGD', 'VBTYZ', 'VERUS', 'VESBE', 'VESTL', 'VKFYO', 'VKGYO', 'VKING', 'YEOTK', 'YGGYO', 'YGYO', 'YKBNK', 'YKSLN', 'YONGA', 'YUNSA', 'YYAPI', 'ZEDUR', 'ZOREN', 'ZRGYO'
+];
+
+async function seedBist() {
+  console.log('Seeding BIST stocks...');
+  let added = 0;
+  for (const ticker of bistStocks) {
+    const symbol = ticker + '.IS';
+    try {
+      await prisma.stock.upsert({
+        where: { ticker: symbol },
+        update: {},
+        create: {
+          ticker: symbol,
+          name: ticker + ' (BIST Hisse Senedi)',
+          type: 'bist',
+          exchange: 'IS',
+          currency: 'TRY',
+          source: 'yahoo',
+          isActive: true,
+          description: 'Borsa İstanbul (BIST) listesindeki otomatik yüklenmiş hisse senedi.'
+        }
+      });
+      added++;
+    } catch (e) {
+      console.error(`Error adding ${symbol}:`, e.message);
+    }
+  }
+  console.log(`Successfully synced ${added} BIST stocks.`);
+}
+
+seedBist()
+  .catch(e => console.error(e))
+  .finally(async () => {
+    await prisma.$disconnect();
+  });

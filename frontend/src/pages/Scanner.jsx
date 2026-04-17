@@ -5,7 +5,7 @@ import toast from 'react-hot-toast';
 import {
   Search, RefreshCw, Zap, TrendingUp, TrendingDown, ChevronDown, ChevronRight,
   Star, StarOff, Eye, ArrowUpRight, ArrowDownRight, Filter, Globe, BarChart2,
-  Layers, Target, ShieldCheck, AlertTriangle, Plus, X, Clock
+  Layers, Target, ShieldCheck, AlertTriangle, Plus, X, Clock, Cpu
 } from 'lucide-react';
 import ChartCard from '../components/ChartCard';
 import Backtest from './Backtest';
@@ -363,13 +363,19 @@ export default function Scanner() {
     toast.loading(`${quickTicker} taranıyor...`);
     try {
       const market = quickTicker.includes('=') ? 'forex' : quickTicker.includes('-') ? 'crypto' : 'bist';
-      const { data } = await client.get(`/universal/scan?market=${market}`);
-      setScanResults(data);
+      const { data } = await client.get(`/universal/scan/${quickTicker}?type=${market}`);
+      setScanResults({
+        totalScanned: 1,
+        totalPassed: 1,
+        totalErrors: 0,
+        results: [data],
+        scanTime: new Date().toISOString()
+      });
       toast.dismiss();
       toast.success(`Tarama tamamlandı`);
     } catch (err) {
       toast.dismiss();
-      toast.error('Hata');
+      toast.error('Hata: Belki de sembol bulunamadı.');
     }
     setScanning(false);
     setQuickTicker('');

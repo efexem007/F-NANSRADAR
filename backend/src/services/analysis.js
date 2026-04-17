@@ -1,5 +1,5 @@
 import { fetchStockPrices } from './yahooFinance.js';
-import { calculateRSI, calculateMACD, calculateSMA, calculateBollinger } from './technical.js';
+import { calculateRSI, calculateMACD, calculateSMA, calculateBollinger, calculateEMA, calculateStochastic, calculateADX, calculateMFI, calculateFibonacci, calculateSupportResistance } from './technical.js';
 import { getMacroData } from './macroData.js';
 import { findOptimalD, calcOFI } from './fracDiff.js';
 import { detectRegime } from './regimeDetector.js';
@@ -166,6 +166,47 @@ _Beklenen Fiyat Etkisi:_ Yön **${bolImp && bolImp.impactPct >= 0 ? '+' : '-'}**
 _Nasıl Çalışır:_ Hacim, hissede dönen para miktarıdır. Bir yükseliş veya düşüş yüksek hacimle gerçekleşiyorsa işlem "onaylanmış" (güvenilir) sayılır. Sığ hacimli hareketler genelde tuzaktır.
 _Hissedeki Durum:_ ${volume.comment}`);
 
+  // Stochastic
+  if (data.stochastic) {
+    const stoch = data.stochastic;
+    const stochSignalMap = { oversold: 'Aşırı Satım — Güçlü dönüş sinyali', overbought: 'Aşırı Alım — Düzeltme riski', bullish_cross: 'Yukarı Kesişim — Alım sinyali', bearish_cross: 'Aşağı Kesişim — Satış sinyali', neutral: 'Nötr bölgede' };
+    lines.push(`\n**6. Stochastic Oscillator Nedir?**
+_Nasıl Çalışır:_ Fiyatın belirli bir dönemdeki en yüksek ve en düşük değerlere göre kapanış konumunu ölçer. %K ve %D çizgileri kullanılır. 20 altı aşırı satım, 80 üstü aşırı alımdır.
+_Hissedeki Durum:_ %K: ${stoch.k}, %D: ${stoch.d} — ${stochSignalMap[stoch.signal] || 'Nötr'}`);
+  }
+
+  // ADX
+  if (data.adx) {
+    const adx = data.adx;
+    lines.push(`\n**7. ADX (Ortalama Yönlü Endeks) Nedir?**
+_Nasıl Çalışır:_ ADX trendin gücünü ölçer (yönünü değil). 25 üzeri güçlü trend, 20 altı zayıf/yatay piyasa demektir. DI+ > DI- ise yükseliş trendi, tersi düşüş trendi.
+_Hissedeki Durum:_ ADX: ${adx.adx}, DI+: ${adx.diPlus}, DI-: ${adx.diMinus} — Trend Gücü: **${adx.trendStrength}** | Yön: **${adx.direction === 'bullish' ? 'Yükseliş' : 'Düşüş'}**`);
+  }
+
+  // MFI
+  if (data.mfi) {
+    const mfi = data.mfi;
+    lines.push(`\n**8. MFI (Para Akış Endeksi) Nedir?**
+_Nasıl Çalışır:_ MFI, hacim ağırlıklı RSI'dır. Hem fiyat hem hacim bilgisini birleştirir. 20 altı güçlü alım fırsatı, 80 üstü satış baskısı sinyalidir.
+_Hissedeki Durum:_ MFI: ${mfi.mfi} — ${mfi.signal === 'oversold' ? 'Aşırı Satım (Alım fırsatı)' : mfi.signal === 'overbought' ? 'Aşırı Alım (Kâr realizasyonu)' : 'Normal akış'}`);
+  }
+
+  // Fibonacci
+  if (data.fibonacci) {
+    const fib = data.fibonacci;
+    lines.push(`\n**9. Fibonacci Geri Çekilme Seviyeleri Nedir?**
+_Nasıl Çalışır:_ Fibonacci seviyeleri, fiyatın bir ralliden sonra ne kadar geri çekileceğini tahmin eder. %38.2, %50 ve %61.8 en önemli destek/direnç seviyeleridir.
+_Hissedeki Durum:_ Fiyat **${fib.zone === 'support_zone' ? 'destek bölgesinde' : fib.zone === 'resistance_zone' ? 'direnç bölgesinde' : fib.zone === 'deep_retracement' ? 'derin geri çekilmede' : 'orta bölgede'}**. En yakın Fibonacci: ${fib.closestLevel?.level} (${fib.closestLevel?.price} TL)`);
+  }
+
+  // Destek/Direnç
+  if (data.supportResistance) {
+    const sr = data.supportResistance;
+    lines.push(`\n**10. Destek/Direnç Seviyeleri Nedir?**
+_Nasıl Çalışır:_ Fiyatın sıklıkla geri döndüğü seviyeleri belirler. Destek: fiyatın düşüşte durduğu seviye. Direnç: yükselişte durduğu seviye.
+_Hissedeki Durum:_ En yakın Destek: **${sr.closestSupport || 'Yok'} TL** | En yakın Direnç: **${sr.closestResistance || 'Yok'} TL** | Pivot: **${sr.pivotPoints?.pivot} TL**`);
+  }
+
   lines.push(`\n---\n`);
   
   // 3. Toplam Analiz Özeti ve Puan
@@ -245,7 +286,14 @@ export async function analyzeStock(ticker, period = '3mo') {
   const macdRaw = calculateMACD(priceData);
   const sma20Raw = calculateSMA(priceData, 20);
   const sma50Raw = calculateSMA(priceData, 50);
+  const ema12Raw = calculateEMA(priceData, 12);
+  const ema26Raw = calculateEMA(priceData, 26);
   const bollingerRaw = calculateBollinger(priceData);
+  const stochasticRaw = calculateStochastic(priceData);
+  const adxRaw = calculateADX(priceData);
+  const mfiRaw = calculateMFI(priceData);
+  const fibonacciRaw = calculateFibonacci(priceData);
+  const supportResistanceRaw = calculateSupportResistance(priceData);
 
   const rsiInterp = interpretRSI(rsi14Raw);
   const macdInterp = interpretMACD(macdRaw);
@@ -273,7 +321,12 @@ export async function analyzeStock(ticker, period = '3mo') {
   const riskScore = riskReport.riskScore || 50;
 
   // Teknik alt skor
-  const techScore = (rsiInterp.score * 0.35) + (macdInterp.score * 0.25) + (smaInterp.score * 0.2) + (bollingerInterp.score * 0.2);
+  // Stochastic ve ADX skorlarını hesapla
+  const stochScore = stochasticRaw ? (stochasticRaw.signal === 'oversold' ? 80 : stochasticRaw.signal === 'overbought' ? 20 : stochasticRaw.signal === 'bullish_cross' ? 70 : stochasticRaw.signal === 'bearish_cross' ? 30 : 50) : 50;
+  const adxScore = adxRaw ? (adxRaw.isTrending && adxRaw.direction === 'bullish' ? 70 : adxRaw.isTrending && adxRaw.direction === 'bearish' ? 30 : 50) : 50;
+  const mfiScore = mfiRaw ? (mfiRaw.signal === 'oversold' ? 80 : mfiRaw.signal === 'overbought' ? 20 : mfiRaw.signal === 'weak' ? 60 : mfiRaw.signal === 'strong' ? 35 : 50) : 50;
+
+  const techScore = (rsiInterp.score * 0.25) + (macdInterp.score * 0.20) + (smaInterp.score * 0.15) + (bollingerInterp.score * 0.15) + (stochScore * 0.10) + (adxScore * 0.08) + (mfiScore * 0.07);
   
   // OFI skoru tekniğe dahil (küçük ağırlıkla)
   const adjustedTechScore = techScore * 0.90 + ofiResult.score * 0.10;
@@ -357,7 +410,8 @@ export async function analyzeStock(ticker, period = '3mo') {
   const commentary = generateAICommentary({
     rsi: rsiInterp, macd: macdInterp, sma: smaInterp, bollinger: bollingerInterp,
     volume: volumeInterp, trend: trendInterp, macroData: macro, finalScore, signal,
-    regime, ofi: ofiResult, riskReport, fracDiff: fracDiffResult, priceImpact, currentPrice
+    regime, ofi: ofiResult, riskReport, fracDiff: fracDiffResult, priceImpact, currentPrice,
+    stochastic: stochasticRaw, adx: adxRaw, mfi: mfiRaw, fibonacci: fibonacciRaw, supportResistance: supportResistanceRaw
   });
 
   // ─── TAHMİN GEÇMİŞİ ─────────────────────────────────────────────────────
@@ -378,7 +432,13 @@ export async function analyzeStock(ticker, period = '3mo') {
       rsi: { raw: rsi14Raw, ...rsiInterp },
       macd: { raw: { macd: macdRaw?.macd, signal: macdRaw?.signal, hist: macdRaw?.hist }, ...macdInterp },
       sma: { raw: { sma20: sma20Raw, sma50: sma50Raw }, ...smaInterp },
+      ema: { ema12: ema12Raw, ema26: ema26Raw },
       bollinger: { raw: bollingerRaw, ...bollingerInterp },
+      stochastic: stochasticRaw,
+      adx: adxRaw,
+      mfi: mfiRaw,
+      fibonacci: fibonacciRaw,
+      supportResistance: supportResistanceRaw,
       volume: { ...volumeInterp },
       trend: { ...trendInterp },
       ofi: ofiResult,

@@ -1,14 +1,18 @@
 import { NavLink } from 'react-router-dom'
-import { BarChart2, PieChart, Activity, Settings, LogOut, TrendingUp, Cpu, Globe } from 'lucide-react'
+import { BarChart2, PieChart, Activity, Settings, LogOut, TrendingUp, Cpu, Globe, List, LineChart } from 'lucide-react'
 import { useContext } from 'react'
 import { AuthContext } from '../../context/AuthContext'
 
-const links = [
+const mainLinks = [
   { to: '/',          icon: Activity,   label: 'Dashboard' },
   { to: '/portfolio', icon: PieChart,   label: 'Portföy' },
   { to: '/signals',   icon: TrendingUp, label: 'Sinyaller' },
   { to: '/scanner',   icon: Cpu,        label: 'AI Scanner & Lab' },
-  { to: '/settings',  icon: Settings,   label: 'Ayarlar' },
+]
+
+const marketLinks = [
+  { to: '/stocks',    icon: List,       label: 'Tüm BIST Hisseleri' },
+  { to: '/macro',     icon: Globe,      label: 'Makro Dashboard' },
 ]
 
 const Sidebar = () => {
@@ -16,26 +20,42 @@ const Sidebar = () => {
 
   return (
     <aside className="w-[240px] h-screen bg-[#0a0a1f] border-r border-white/5 fixed left-0 top-0 flex flex-col z-30">
-      {/* Madde 3: Gradient Logo */}
+      {/* Gradient Logo */}
       <div className="h-16 flex items-center gap-2.5 px-5 border-b border-white/5">
         <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-purple-500 to-cyan-500 flex items-center justify-center">
           <TrendingUp className="w-5 h-5 text-white" />
         </div>
         <div>
           <div className="text-base font-bold bg-gradient-to-r from-purple-400 to-cyan-400 bg-clip-text text-transparent">FinansRadar</div>
-          <div className="text-[10px] text-slate-500 -mt-0.5">BORSA ANALİZ</div>
+          <div className="text-[10px] text-slate-500 -mt-0.5">BORSA ANALİZ v2.0</div>
         </div>
       </div>
 
       <nav className="flex-1 py-5 px-3 space-y-1 overflow-y-auto">
         <p className="text-[10px] font-semibold uppercase tracking-widest text-slate-600 px-3 mb-3">Genel</p>
-        {links.map(link => (
+        {mainLinks.map(link => (
           <NavLink key={link.to} to={link.to} end={link.to === '/'}
             className={({ isActive }) => `sidebar-link ${isActive ? 'active' : ''}`}>
             <link.icon size={18} />
             {link.label}
           </NavLink>
         ))}
+
+        <p className="text-[10px] font-semibold uppercase tracking-widest text-slate-600 px-3 mb-3 mt-5">Piyasa</p>
+        {marketLinks.map(link => (
+          <NavLink key={link.to} to={link.to}
+            className={({ isActive }) => `sidebar-link ${isActive ? 'active' : ''}`}>
+            <link.icon size={18} />
+            {link.label}
+          </NavLink>
+        ))}
+
+        <p className="text-[10px] font-semibold uppercase tracking-widest text-slate-600 px-3 mb-3 mt-5">Sistem</p>
+        <NavLink to="/settings"
+          className={({ isActive }) => `sidebar-link ${isActive ? 'active' : ''}`}>
+          <Settings size={18} />
+          Ayarlar
+        </NavLink>
       </nav>
 
       <div className="p-3 border-t border-white/5">

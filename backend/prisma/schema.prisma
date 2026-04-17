@@ -40,6 +40,14 @@ model Stock {
   ticker        String   @id
   name          String
   sector        String?
+  industry      String?
+  description   String?
+  type          String   @default("bist")    // bist, forex, crypto, commodity, index
+  exchange      String   @default("IS")      // IS, NYSE, NASDAQ, CCC vs
+  currency      String   @default("TRY")     // TRY, USD, EUR
+  source        String   @default("yahoo")   // yahoo, manual
+  marketCap     Float?
+  isActive      Boolean  @default(true)
   lastPrice     Float?
   lastUpdate    DateTime?
   fundamental   FundamentalData[]
