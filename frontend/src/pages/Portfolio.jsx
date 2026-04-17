@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { PieChart as PieIcon, Plus, Trash2, Download } from 'lucide-react'
+import { PieChart as PieIcon, Plus, Trash2, Download, Zap, X } from 'lucide-react'
 import { PieChart, Pie, Cell, Tooltip, Legend, ResponsiveContainer } from 'recharts'
 import * as XLSX from 'xlsx'
 import client from '../api/client'
@@ -17,6 +17,8 @@ const Portfolio = () => {
   const [avgCost, setAvgCost] = useState('')
   const [modalLoading, setModalLoading] = useState(false)
   const [modalError, setModalError] = useState('')
+  const [optimizing, setOptimizing] = useState(false)
+  const [optimizedWeights, setOptimizedWeights] = useState(null)
 
   useEffect(() => { fetchPortfolio() }, [])
 
@@ -52,6 +54,23 @@ const Portfolio = () => {
     XLSX.writeFile(wb, `portfoy_${new Date().toLocaleDateString('tr-TR')}.xlsx`)
   }
 
+  // Phase 2: HRP Optimizasyon (Yapay Zeka)
+  const handleOptimize = async () => {
+    if (data.items.length < 2) {
+      alert('Optimizasyon için en az 2 hisseniz olmalı.');
+      return;
+    }
+    setOptimizing(true);
+    try {
+      const res = await client.post('/portfolio/optimize');
+      setOptimizedWeights(res.data.weights);
+    } catch (err) {
+      alert(err.response?.data?.error || 'Optimizasyon sırasında hata oluştu.');
+    } finally {
+      setOptimizing(false);
+    }
+  }
+
   // Madde 20: Pie chart data
   const pieData = data.items?.map(item => ({ name: item.ticker, value: item.value || item.shares * item.avgCost })) || []
 
@@ -68,6 +87,9 @@ const Portfolio = () => {
           <p className="text-sm text-slate-500 mt-1">Varlıklarınızı yönetin ve performansı takip edin</p>
         </div>
         <div className="flex gap-3">
+          <button onClick={handleOptimize} disabled={optimizing || data.items.length < 2} className="btn-outline text-amber-400 border-amber-500/30 hover:!border-amber-500/50 hover:!text-amber-300 disabled:opacity-50">
+            <Zap size={14} className={optimizing ? "animate-pulse" : ""} /> {optimizing ? 'Optimize Ediliyor...' : 'Yapay Zeka ile Optimize Et'}
+          </button>
           <button onClick={exportToExcel} className="btn-outline text-green-400 border-green-500/30 hover:!border-green-500/50 hover:!text-green-300">
             <Download size={14} /> Excel
           </button>
@@ -141,6 +163,63 @@ const Portfolio = () => {
           </tbody>
         </table>
       </div>
+
+      {/* AI Optimizasyon Sonucu Modal */}
+      {optimizedWeights && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setOptimizedWeights(null)} />
+          <div className="relative glass-card w-full max-w-lg p-0" style={{ boxShadow: '0 0 50px rgba(245, 158, 11, 0.2)' }}>
+            <div className="p-4 border-b border-white/5 flex items-center justify-between bg-amber-500/10">
+              <div>
+                <h2 className="text-lg font-bold text-amber-400 flex items-center gap-2"><Zap size={20} /> AI Portföy Optimizasyonu (HRP)</h2>
+                <p className="text-xs text-amber-400/70 mt-1">Hiyerarşik Risk Paritesi (Machine Learning) ile risk/getiri hedefleri</p>
+              </div>
+              <button onClick={() => setOptimizedWeights(null)} className="text-slate-400 hover:text-white"><X size={20}/></button>
+            </div>
+            
+            <div className="p-5 overflow-y-auto max-h-[60vh]">
+              <table className="w-full text-left">
+                <thead>
+                  <tr className="text-[10px] text-slate-500 uppercase tracking-wider border-b border-white/5">
+                    <th className="py-2">Hisse</th>
+                    <th className="py-2 text-right">Mevcut Ağırlık</th>
+                    <th className="py-2 text-right">AI Hedef Ağırlık</th>
+                    <th className="py-2 text-right">Aksiyon Önerisi</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {Object.entries(optimizedWeights).sort((a,b) => b[1] - a[1]).map(([ticker, targetWeight]) => {
+                    const item = data.items.find(i => i.ticker === ticker);
+                    const currentWeight = item ? (item.value / summary.totalValue) : 0;
+                    const diff = targetWeight - currentWeight;
+                    
+                    return (
+                      <tr key={ticker} className="border-b border-white/5 last:border-0 text-sm">
+                        <td className="py-3 font-bold text-white">{ticker}</td>
+                        <td className="py-3 text-right opacity-70">{formatPercent(currentWeight * 100)}</td>
+                        <td className="py-3 text-right font-mono text-amber-400 font-bold">{formatPercent(targetWeight * 100)}</td>
+                        <td className="py-3 text-right">
+                          {diff > 0.02 ? (
+                            <span className="text-green-400 text-xs px-2 py-1 bg-green-500/10 rounded flex items-center justify-end gap-1"><Plus size={10}/> Ekle</span>
+                          ) : diff < -0.02 ? (
+                            <span className="text-red-400 text-xs px-2 py-1 bg-red-500/10 rounded flex items-center justify-end gap-1"><Trash2 size={10}/> Azalt</span>
+                          ) : (
+                            <span className="text-slate-400 text-[10px] uppercase">Koru</span>
+                          )}
+                        </td>
+                      </tr>
+                    )
+                  })}
+                </tbody>
+              </table>
+              <div className="mt-4 p-3 bg-white/5 rounded-xl border border-white/10 text-xs text-slate-400">
+                <span className="text-white font-bold block mb-1">Not:</span> 
+                Hiyerarşik Risk Paritesi, korelasyonu düşük varlıkları dengeli bir araya getirerek olası bir kriz senaryosuna (Drawdown) en dayanıklı portföyü üretir.
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Modal */}
       {showModal && (

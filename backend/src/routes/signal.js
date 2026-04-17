@@ -4,8 +4,15 @@ import { asyncHandler } from '../lib/asyncHandler.js';
 import { validate, signalCalcSchema } from '../lib/validate.js';
 import { fundamentalScore, technicalScore, macroScore, calculateFinalSignal } from '../services/signal.js';
 import { calculateRSI, calculateMACD, calculateSMA, calculateBollinger } from '../services/technical.js';
+import { analyzeStock } from '../services/analysis.js';
+import { createRequire } from 'module';
+
+const require2 = createRequire(import.meta.url);
+const bistMaster = require2('../data/bistMaster.json');
+
 const router = Router();
 
+// ─── Tek hisse sinyal hesaplama ────────────────────────────────────────
 router.post('/calculate', validate(signalCalcSchema), asyncHandler(async (req, res) => {
   const { ticker } = req.body;
   const stock = await prisma.stock.findUnique({ where: { ticker }, include: { ratios: true, fundamental: { orderBy: { period: 'desc' }, take: 1 } } });
@@ -30,13 +37,92 @@ router.post('/calculate', validate(signalCalcSchema), asyncHandler(async (req, r
   res.json({ ticker, signal, score, fundScore, techScore: techScoreVal, macroScore: macroScoreVal });
 }));
 
+// ─── Geçmiş sinyalleri getir ───────────────────────────────────────────
 router.get('/history', asyncHandler(async (req, res) => {
-  // SQLite compatible: get the latest signal for each ticker
-  const latestSignals = await prisma.signalHistory.findMany({
-    orderBy: { createdAt: 'desc' },
-    distinct: ['ticker'],
+  const recentPredictions = await prisma.predictionHistory.findMany({
+    orderBy: { analysisDate: 'desc' },
   });
-  res.json(latestSignals);
+
+  const uniqueS = [];
+  const tkSet = new Set();
+  
+  for (const p of recentPredictions) {
+    if (!tkSet.has(p.ticker)) {
+      tkSet.add(p.ticker);
+      uniqueS.push({
+        ticker: p.ticker,
+        signal: p.signal,
+        score: p.score,
+        price: p.currentPrice,
+        createdAt: p.analysisDate,
+      });
+    }
+  }
+
+  res.json(uniqueS);
 }));
+
+// ═══════════════════════════════════════════════════════════════════════════
+// PİYASAYI TARA — SSE (Server-Sent Events) ile canlı akış
+// Tüm BIST hisselerini tek tek tarar, her birini anında frontend'e gönderir
+// ═══════════════════════════════════════════════════════════════════════════
+router.get('/scan-all', async (req, res) => {
+  // SSE başlıkları
+  res.writeHead(200, {
+    'Content-Type': 'text/event-stream',
+    'Cache-Control': 'no-cache',
+    'Connection': 'keep-alive',
+    'X-Accel-Buffering': 'no',
+  });
+
+  // Tüm BIST hisselerini topla
+  const allTickers = [
+    ...(bistMaster.bist30 || []),
+    ...(bistMaster.bist100Additions || []),
+  ];
+  const uniqueTickers = [...new Set(allTickers)];
+  const total = uniqueTickers.length;
+
+  // Frontend'e toplam sayıyı bildir
+  res.write(`event: init\ndata: ${JSON.stringify({ total })}\n\n`);
+
+  let successCount = 0;
+  let failCount = 0;
+
+  for (let i = 0; i < uniqueTickers.length; i++) {
+    const symbol = uniqueTickers[i];
+    const ticker = `${symbol}.IS`;
+
+    try {
+      const result = await analyzeStock(ticker);
+
+      const signalData = {
+        ticker: symbol,
+        signal: result.signal || 'BEKLE',
+        score: result.finalScore || 0,
+        price: result.currentPrice || 0,
+        rsi: result.indicators?.rsi?.raw ? parseFloat(result.indicators.rsi.raw.toFixed(1)) : null,
+        macdHist: result.indicators?.macd?.raw?.hist ? parseFloat(result.indicators.macd.raw.hist.toFixed(3)) : null,
+        regime: result.regime?.name || 'Sakin',
+        createdAt: new Date().toISOString(),
+        index: i + 1,
+        total,
+      };
+
+      res.write(`event: signal\ndata: ${JSON.stringify(signalData)}\n\n`);
+      successCount++;
+    } catch (err) {
+      res.write(`event: error\ndata: ${JSON.stringify({ ticker: symbol, error: err.message, index: i + 1, total })}\n\n`);
+      failCount++;
+    }
+
+    // Rate limit — Yahoo API'yi boğmamak için
+    await new Promise(r => setTimeout(r, 1200));
+  }
+
+  // Tarama bitti
+  res.write(`event: done\ndata: ${JSON.stringify({ total, success: successCount, failed: failCount })}\n\n`);
+  res.end();
+});
 
 export default router;

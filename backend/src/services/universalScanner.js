@@ -81,7 +81,7 @@ export const ASSET_UNIVERSES = {
 // SINGLE ASSET ANALYZER (Universal)
 // ═══════════════════════════════════════════════════════════════════════════
 
-async function analyzeAsset(symbol, name, assetType) {
+export async function analyzeAsset(symbol, name, assetType) {
   // Yahoo Finance'den veri çek (suffix yok, sembol kendi içinde IS vs suffix taşıyor)
   const isISStock = symbol.endsWith('.IS') || assetType === 'bist';
   const fetchSymbol = isISStock && !symbol.endsWith('.IS') ? symbol : symbol;

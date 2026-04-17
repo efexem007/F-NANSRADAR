@@ -15,12 +15,9 @@ import Backtest from './Backtest';
 // ═══════════════════════════════════════════════════════════════════════════
 
 const MARKETS = [
-  { key: 'all', label: 'Tümü', icon: '🌍', color: 'from-purple-500 to-cyan-500' },
-  { key: 'bist', label: 'BIST', icon: '🏛️', color: 'from-red-500 to-orange-500' },
-  { key: 'forex', label: 'Döviz', icon: '💱', color: 'from-blue-500 to-indigo-500' },
-  { key: 'crypto', label: 'Kripto', icon: '₿', color: 'from-amber-500 to-yellow-500' },
-  { key: 'commodity', label: 'Emtia', icon: '🛢️', color: 'from-emerald-500 to-green-500' },
-  { key: 'index', label: 'Endeks', icon: '📊', color: 'from-violet-500 to-purple-500' },
+  { key: 'all', label: 'Tüm BIST', icon: '🌍', color: 'from-purple-500 to-cyan-500' },
+  { key: 'bist', label: 'Hisseler', icon: '🏛️', color: 'from-red-500 to-orange-500' },
+  { key: 'index', label: 'Endeksler', icon: '📊', color: 'from-violet-500 to-purple-500' },
 ];
 
 const SIGNAL_COLORS = {
@@ -284,10 +281,10 @@ function MarketSummaryBar({ results }) {
 
   const highlights = [
     results.find(r => r.symbol === 'XU100.IS'),
-    results.find(r => r.symbol === 'USDTRY=X'),
-    results.find(r => r.symbol === 'BTC-USD'),
-    results.find(r => r.symbol === 'GC=F'),
-    results.find(r => r.symbol === 'CL=F'),
+    results.find(r => r.symbol === 'THYAO.IS'),
+    results.find(r => r.symbol === 'AKBNK.IS'),
+    results.find(r => r.symbol === 'TUPRS.IS'),
+    results.find(r => r.symbol === 'ASELS.IS'),
   ].filter(Boolean);
 
   return (
@@ -388,8 +385,6 @@ export default function Scanner() {
     return {
       topOverall: items.slice(0, 5),
       topBist: items.filter(i => i.type === 'bist').slice(0, 5),
-      topCrypto: items.filter(i => i.type === 'crypto').slice(0, 3),
-      topForex: items.filter(i => i.type === 'forex').slice(0, 3),
       momentum: items.filter(i => i.change7d > 3 && i.relativeVolume > 1.2).slice(0, 5),
       oversold: items.filter(i => i.indicators?.rsi != null && i.indicators.rsi < 35).slice(0, 5),
       lowRisk: items.filter(i => i.riskScore > 70).sort((a,b) => b.riskScore - a.riskScore).slice(0, 5),
@@ -553,7 +548,7 @@ export default function Scanner() {
             <div className="flex gap-1.5">
               <input
                 type="text"
-                placeholder="Sembol Ekle (BTC-USD)"
+                placeholder="Sembol Ekle (THYAO)"
                 value={quickTicker}
                 onChange={e => setQuickTicker(e.target.value.toUpperCase())}
                 onKeyDown={e => e.key === 'Enter' && handleQuickScan()}

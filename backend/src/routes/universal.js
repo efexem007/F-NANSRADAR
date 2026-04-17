@@ -23,6 +23,51 @@ router.get('/scan', asyncHandler(async (req, res) => {
   res.json(result);
 }));
 
+// ─── Canlı tarama (SSE - Server Sent Events) ────────────────────────
+router.get('/scan-stream', async (req, res) => {
+  // SSE Header ayarları
+  res.writeHead(200, {
+    'Content-Type': 'text/event-stream',
+    'Cache-Control': 'no-cache',
+    'Connection': 'keep-alive'
+  });
+
+  const market = req.query.market || 'all';
+  const universes = market === 'all' 
+    ? Object.keys(ASSET_UNIVERSES) 
+    : [market];
+
+  // analyzeAsset import (universalScanner'da export ettik)
+  const { analyzeAsset } = await import('../services/universalScanner.js');
+
+  const notify = (type, data) => res.write(`event: ${type}\ndata: ${JSON.stringify(data)}\n\n`);
+
+  try {
+    for (const uniKey of universes) {
+      if (!ASSET_UNIVERSES[uniKey]) continue;
+      const symbols = ASSET_UNIVERSES[uniKey].symbols;
+      
+      for (const item of symbols) {
+        try {
+          const analyzed = await analyzeAsset(item.symbol, item.name, uniKey);
+          if (analyzed && analyzed.close > 0) {
+            notify('assetAnalyzed', analyzed);
+          }
+        } catch (e) {
+          console.error(`SSE Error on ${item.symbol}:`, e.message);
+        }
+        // Çok ufak bir bekleme (sunucuyu boğmamak ve UI'da akışı hissettirmek için)
+        await new Promise(r => setTimeout(r, 100));
+      }
+    }
+  } catch(e) {
+    notify('error', { message: e.message });
+  }
+
+  notify('done', { message: 'Tarama tamamlandı!' });
+  res.end();
+});
+
 // ─── AI Önerileri (Scan sonuçlarına göre) ──────────────────────────────
 router.post('/ai-picks', asyncHandler(async (req, res) => {
   const { scanResults } = req.body;
