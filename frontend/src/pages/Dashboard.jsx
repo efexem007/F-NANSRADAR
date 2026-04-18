@@ -38,6 +38,9 @@ const Dashboard = () => {
   // Makro Seleksiyonları
   const [macroCountry, setMacroCountry] = useState('TR')
   const [macroCompany, setMacroCompany] = useState('TÜMÜ')
+  const [allTickersList, setAllTickersList] = useState([])
+  const [compareA, setCompareA] = useState('AKBNK')
+  const [compareB, setCompareB] = useState('THYAO')
 
   const { toggle, isFavorite } = useFavorites()
 
@@ -56,20 +59,24 @@ const Dashboard = () => {
   useEffect(() => {
     const fetchAll = async () => {
       try {
-        const [portRes, macroRes, sigRes] = await Promise.all([
+        const [portRes, macroRes, sigRes, listRes] = await Promise.all([
           client.get('/portfolio'),
           client.get('/macro'),
           client.get('/signal/history'),
+          client.get('/stock/list?pageSize=1000')
         ])
         setPortfolio(portRes.data)
         setMacros(macroRes.data)
         setSignals(sigRes.data)
+        const allList = listRes.data.items || []
+        setAllTickersList(allList)
 
         const portItems = portRes.data.items || []
-        const tickers = portItems.map(i => i.ticker)
-        const allTickers = tickers.length > 0 ? tickers : ['THYAO', 'AKBNK', 'TUPRS', 'ASELS']
+        const portTickers = portItems.map(i => i.ticker.replace('.IS', ''))
+        const activeTickers = Array.from(new Set([compareA, compareB, ...portTickers])).slice(0, 8)
+        
         const priceData = {}
-        for (const ticker of allTickers) {
+        for (const ticker of activeTickers) {
           try {
             const res = await client.get(`/stock/${ticker}/price?period=3mo`)
             priceData[ticker] = res.data.priceData || []
@@ -80,7 +87,7 @@ const Dashboard = () => {
       finally { setLoading(false) }
     }
     fetchAll()
-  }, [])
+  }, [compareA, compareB])
 
   const { summary } = portfolio
   const tickers = Object.keys(prices).filter(t => prices[t].length > 0)
@@ -174,20 +181,39 @@ const Dashboard = () => {
   return (
     <div className="space-y-5 animate-fade-in">
       {/* Madde 3: Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col md:flex-row items-center justify-between gap-4 glass-card p-4">
         <div className="flex items-center gap-3">
-          <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-purple-500 to-cyan-500 flex items-center justify-center">
-            <TrendingUp className="w-5 h-5 text-white" />
+          <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-purple-500 to-cyan-500 flex items-center justify-center shadow-lg shadow-purple-500/20">
+            <TrendingUp className="w-6 h-6 text-white" />
           </div>
           <div>
-            <div className="text-lg font-bold bg-gradient-to-r from-purple-400 to-cyan-400 bg-clip-text text-transparent">FinansRadar Dashboard</div>
-            <div className="text-xs text-slate-400 -mt-0.5">BORSA ANALİZ & TAHMİN</div>
+            <div className="text-xl font-bold bg-gradient-to-r from-purple-400 to-cyan-400 bg-clip-text text-transparent">FinansRadar Dashboard</div>
+            <div className="text-xs text-slate-400 -mt-0.5 font-medium tracking-wider">BORSA ANALİZ & TAHMİN</div>
           </div>
         </div>
-        {/* Madde 46: Arama */}
+
+        <div className="flex items-center gap-3 bg-white/5 p-2 rounded-2xl border border-white/10">
+          <div className="flex items-center gap-2">
+            <span className="text-[10px] font-bold text-slate-500 uppercase">Kıyasla:</span>
+            <select value={compareA} onChange={e => setCompareA(e.target.value)} className="bg-[#0f1025] border border-white/10 rounded-lg px-3 py-1.5 text-xs text-white focus:outline-none focus:border-purple-500/50 cursor-pointer">
+              {allTickersList.map(s => (
+                <option key={s.ticker} value={s.ticker.replace('.IS', '')}>{s.ticker.replace('.IS', '')}</option>
+              ))}
+            </select>
+          </div>
+          <div className="w-px h-6 bg-white/10" />
+          <div className="flex items-center gap-2">
+            <select value={compareB} onChange={e => setCompareB(e.target.value)} className="bg-[#0f1025] border border-white/10 rounded-lg px-3 py-1.5 text-xs text-white focus:outline-none focus:border-cyan-500/50 cursor-pointer">
+              {allTickersList.map(s => (
+                <option key={s.ticker} value={s.ticker.replace('.IS', '')}>{s.ticker.replace('.IS', '')}</option>
+              ))}
+            </select>
+          </div>
+        </div>
+
         <form onSubmit={(e) => { e.preventDefault(); if(search) window.location.href = `/stock/${search.toUpperCase()}`}}>
-          <input type="text" placeholder="Hisse ara... (THYAO...)" value={search} onChange={e => setSearch(e.target.value)}
-            className="bg-white/5 border border-white/10 rounded-xl px-4 py-2 text-sm text-slate-300 placeholder-slate-500 focus:outline-none focus:border-purple-500/50 w-64" />
+          <input type="text" placeholder="Hisse ara..." value={search} onChange={e => setSearch(e.target.value)}
+            className="bg-[#0f1025] border border-white/10 rounded-xl px-4 py-2 text-sm text-slate-300 placeholder-slate-500 focus:outline-none focus:border-purple-500/50 w-48" />
         </form>
       </div>
 

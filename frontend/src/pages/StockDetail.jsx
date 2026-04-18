@@ -843,12 +843,12 @@ const StockDetail = () => {
     { label: '6 Ay', value: '6mo' }, { label: '1 Yıl', value: '1y' },
   ]
 
-  const fetchData = async (p = period) => {
+  const fetchData = async (p = period, isForce = false) => {
     try {
       setLoading(true)
       setError('')
       const [analyzeRes, fundRes] = await Promise.all([
-        client.get(`/stock/${ticker}/analyze?period=${p}`),
+        client.get(`/stock/${ticker}/analyze?period=${p}${isForce ? '&force=true' : ''}`),
         client.get(`/stock/${ticker}/fundamental`).catch(() => ({ data: null }))
       ])
       setAnalysis(analyzeRes.data)
@@ -860,7 +860,7 @@ const StockDetail = () => {
     }
   }
 
-  useEffect(() => { fetchData(period) }, [ticker, period])
+  useEffect(() => { fetchData(period, false) }, [ticker, period])
 
   const priceWithEma = useMemo(() => {
     if (!analysis?.priceData) return []
@@ -911,8 +911,8 @@ const StockDetail = () => {
             <p className="text-xs text-slate-500 uppercase">Güncel Fiyat</p>
             <p className="text-2xl font-bold">{formatCurrency(analysis?.currentPrice)}</p>
           </div>
-          <button onClick={() => fetchData(period)} className="w-9 h-9 rounded-lg bg-white/5 border border-white/10 flex items-center justify-center hover:border-purple-500/50 transition-colors">
-            <RefreshCw size={16} className="text-slate-400" />
+          <button onClick={() => fetchData(period, true)} className="w-9 h-9 rounded-lg bg-white/5 border border-white/10 flex items-center justify-center hover:border-purple-500/50 transition-colors">
+            <RefreshCw size={16} className={loading ? "text-slate-400 animate-spin" : "text-slate-400"} />
           </button>
         </div>
       </div>
@@ -925,8 +925,6 @@ const StockDetail = () => {
               period === p.value ? 'bg-purple-600 border-purple-500 text-white' : 'border-white/10 text-slate-400 hover:text-white'
             }`}>{p.label}</button>
         ))}
-      </div>
-
       </div>
 
       {/* ─── BÖLÜM 1: Pipeline Visualizer ─────────────────────── */}

@@ -2,6 +2,25 @@
 import YahooFinance from 'yahoo-finance2';
 const yahooFinance = new YahooFinance();
 
+/**
+ * Mevcut fiyatı hızlıca çekmek için (Geriye dönük uyumluluk için eklendi)
+ */
+export const fetchCurrentPrice = async (ticker) => {
+  try {
+    const { currentPrice } = await fetchStockPrices(ticker, '1mo', '1d');
+    return currentPrice;
+  } catch (e) {
+    return null;
+  }
+};
+
+/**
+ * Temel verileri çekmek için (Geriye dönük uyumluluk için eklendi)
+ */
+export const fetchFundamentals = async (ticker) => {
+  return await fetchStockFundamentals(ticker);
+};
+
 export const fetchStockPrices = async (ticker, period = '3mo', interval = '1d') => {
   try {
     let query = ticker.toUpperCase();
@@ -37,7 +56,6 @@ export const fetchStockFundamentals = async (ticker) => {
     let query = ticker.toUpperCase();
     if (!query.includes('.') && !query.includes('-')) query = `${query}.IS`;
 
-    // Daha fazla modül ekleyerek veri şansını artırıyoruz
     const summary = await yahooFinance.quoteSummary(query, { 
       modules: ['assetProfile', 'financialData', 'defaultKeyStatistics', 'incomeStatementHistory', 'balanceSheetHistory'] 
     }).catch(() => null);
@@ -49,9 +67,6 @@ export const fetchStockFundamentals = async (ticker) => {
     const stats = summary.defaultKeyStatistics || {};
     const income = summary.incomeStatementHistory?.incomeStatementHistory?.[0] || {};
     const balance = summary.balanceSheetHistory?.balanceSheetHistory?.[0] || {};
-
-    // Brüt Kar (Gross Profit) tespiti
-    const grossProfit = income.grossProfit || (fd.totalRevenue * (fd.grossMargins || 0.2)) || null;
 
     return {
       profile: {

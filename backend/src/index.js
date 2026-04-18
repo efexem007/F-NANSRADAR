@@ -41,6 +41,17 @@ dotenv.config();
 const app  = express();
 const PORT = process.env.PORT || 3001;
 
+// ─── Crash Prevention (EOF/Target Closed Koruması) ────────────────────────
+process.on('uncaughtException', (err) => {
+  console.error('[CRITICAL] Uncaught Exception:', err.message);
+  // Sistemi kapatma, arka planda logla
+});
+
+process.on('unhandledRejection', (reason, promise) => {
+  console.error('[CRITICAL] Unhandled Rejection:', reason);
+  // Sistemi kapatma, arka planda logla
+});
+
 // ─── Security Middleware ──────────────────────────────────────────────────
 app.use(helmet({
   contentSecurityPolicy: false, // API sunucusu — CSP gerekmez

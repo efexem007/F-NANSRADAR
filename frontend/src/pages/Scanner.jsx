@@ -338,19 +338,47 @@ export default function Scanner() {
     setWlLoading(false);
   };
 
-  // Scan market
-  const handleScan = async (market = activeMarket) => {
+  // Scan market (Real-time Streaming)
+  const handleScan = (market = activeMarket) => {
     setScanning(true);
-    const loadingToast = toast.loading(`${market === 'all' ? 'Tüm piyasalar' : market.toUpperCase()} taranıyor...`);
-    try {
-      const { data } = await client.get(`/universal/scan?market=${market}`);
-      setScanResults(data);
-      setAiPicks(generateLocalAIPicks(data));
-      toast.success(`${data.totalScanned} varlık tarandı, ${data.totalPassed} sonuç!`, { id: loadingToast });
-    } catch (err) {
-      toast.error(`Tarama hatası: ${err.message}`, { id: loadingToast });
-    }
-    setScanning(false);
+    const loadingToast = toast.loading(`${market === 'all' ? 'Tüm piyasalar' : market.toUpperCase()} taranıyor... (0 bulundu)`);
+    
+    // Geçmiş taramayı sıfırla
+    setScanResults({ totalScanned: 0, totalPassed: 0, results: [], totalErrors: 0 });
+    setAiPicks(null);
+
+    const token = localStorage.getItem('token') || '';
+    const eventSource = new EventSource(`/api/universal/scan-stream?market=${market}&token=${token}`);
+
+    eventSource.addEventListener('assetAnalyzed', (event) => {
+      const asset = JSON.parse(event.data);
+      setScanResults(prev => {
+        const results = [...(prev?.results || []), asset];
+        // Ekrana sayıyı yansıt
+        toast.loading(`${market.toUpperCase()} Taranıyor... (${results.length} bulundu)`, { id: loadingToast });
+        return {
+          totalScanned: (prev?.totalScanned || 0) + 1,
+          totalPassed: results.length,
+          results,
+        };
+      });
+    });
+
+    eventSource.addEventListener('done', (event) => {
+      eventSource.close();
+      setScanning(false);
+      setScanResults(prev => {
+        setAiPicks(generateLocalAIPicks(prev));
+        toast.success(`Tarama Tamamlandı! ${prev?.totalPassed || 0} varlık analiz edildi.`, { id: loadingToast });
+        return prev;
+      });
+    });
+
+    eventSource.addEventListener('error', (event) => {
+      eventSource.close();
+      setScanning(false);
+      toast.error(`Tarama kesildi veya tamamlandı.`, { id: loadingToast });
+    });
   };
 
   // Quick single scan

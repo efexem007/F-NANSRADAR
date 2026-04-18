@@ -6,13 +6,14 @@ echo ===================================================
 
 echo [1/4] Calisan Node surecleri temizleniyor (Port kilitlerini cozmek icin)...
 taskkill /F /IM node.exe /T 2>nul
-set PORT=5000
+set PORT=3001
 for /f "tokens=5" %%a in ('netstat -aon ^| findstr :%PORT%') do taskkill /f /pid %%a 2>nul
 set PORT=5173
 for /f "tokens=5" %%a in ('netstat -aon ^| findstr :%PORT%') do taskkill /f /pid %%a 2>nul
 
-echo [2/4] Veritabani istemcisi guncelleniyor (Prisma Generate)...
+echo [2/4] Veritabani kilidi aciliyor ve istemci guncelleniyor...
 cd backend
+del /f /q prisma\dev.db-journal 2>nul
 call npx prisma generate
 
 echo [3/4] Veritabani semasi senkronize ediliyor...

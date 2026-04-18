@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import client from '../api/client'
 import { formatNumber, formatDate, formatCurrency } from '../utils/formatters'
-import { Globe, Activity, TrendingDown, BarChart2, ShieldAlert, Newspaper, PieChart } from 'lucide-react'
+import { Globe, Activity, TrendingDown, BarChart2, ShieldAlert, Newspaper, PieChart, RefreshCw } from 'lucide-react'
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
 import ChartCard from '../components/ChartCard'
 
@@ -65,13 +65,34 @@ const Macro = () => {
   const [selectedStock, setSelectedStock] = useState('THYAO')
   const [fundData, setFundData] = useState(null)
   const [fundLoading, setFundLoading] = useState(false)
+  const [allStocks, setAllStocks] = useState([])
 
-  // Makro verileri çek
+  // Tüm hisseleri çek
   useEffect(() => {
-    (async () => {
-      try { setLoading(true); const res = await client.get('/macro'); setData(res.data) }
-      catch {} finally { setLoading(false) }
-    })()
+    client.get('/stock/list?pageSize=1000').then(res => {
+      setAllStocks(res.data.items || [])
+    }).catch(() => {})
+  }, [])
+
+  const fetchMacro = async (isSync = false) => {
+    try { 
+      setLoading(true); 
+      const res = await (isSync ? client.post('/macro/sync') : client.get('/macro'));
+      
+      // Gelen datayı dizi şekline dönüştür (backend artık obje dönüyor olabilir)
+      let finalData = res.data;
+      if (!Array.isArray(res.data) && typeof res.data === 'object') {
+        finalData = Object.entries(res.data).map(([key, value]) => ({ type: key.toUpperCase(), value, date: new Date().toISOString() }));
+      }
+      setData(finalData); 
+
+    }
+    catch {} finally { setLoading(false) }
+  }
+
+  // İlk açılışta db'den (hızlı)
+  useEffect(() => {
+    fetchMacro(false)
   }, [])
 
   // Bilanço (Fundamental) verisi çek
@@ -96,6 +117,9 @@ const Macro = () => {
           <h1 className="text-2xl font-bold flex items-center gap-2"><Globe size={24} className="text-emerald-400" /> Makro Analiz Dashboard</h1>
           <p className="text-sm text-slate-500 mt-1">Ekonomik çevreyi, sektörel momentumu ve haber bazlı duyarlılıkları yapay zeka ile izleyin.</p>
         </div>
+        <button onClick={() => fetchMacro(true)} className="w-10 h-10 rounded-xl bg-white/5 border border-white/10 flex items-center justify-center hover:border-emerald-500/50 hover:bg-emerald-500/10 transition-all text-slate-400 hover:text-emerald-400">
+          <RefreshCw size={18} className={loading ? "animate-spin" : ""} />
+        </button>
       </div>
 
       {/* 1. Makro Kartlar */}
@@ -203,12 +227,19 @@ const Macro = () => {
           <ChartCard icon="📋" title="Şirket Bilançosu & Fundamental Yorum (Mikro Analiz)">
             <div className="flex items-center gap-3 mb-4">
               <span className="text-sm font-semibold text-slate-400">Şirket Seçin:</span>
-              <select value={selectedStock} onChange={e => setSelectedStock(e.target.value)} className="bg-white/5 border border-white/10 rounded-xl px-4 py-2 text-sm text-white focus:outline-none focus:border-purple-500/50">
-                <option value="THYAO">THYAO (Türk Hava Yolları)</option>
-                <option value="AKBNK">AKBNK (Akbank)</option>
-                <option value="TUPRS">TUPRS (Tüpraş)</option>
-                <option value="ASELS">ASELS (Aselsan)</option>
-                <option value="YEOTK">YEOTK (Yeo Teknoloji)</option>
+              <select value={selectedStock} onChange={e => setSelectedStock(e.target.value)} className="bg-[#0f0f23] border border-white/10 rounded-xl px-4 py-2 text-sm text-white focus:outline-none focus:border-purple-500/50 shadow-lg appearance-none cursor-pointer max-w-[200px]">
+                {allStocks.length > 0 ? (
+                  allStocks.map(s => (
+                    <option key={s.ticker} value={s.ticker.replace('.IS', '')} className="bg-[#0f0f23] text-white py-2">
+                      {s.ticker.replace('.IS', '')} ({s.name})
+                    </option>
+                  ))
+                ) : (
+                  <>
+                    <option value="THYAO" className="bg-[#0f0f23] text-white py-2">THYAO (Türk Hava Yolları)</option>
+                    <option value="AKBNK" className="bg-[#0f0f23] text-white py-2">AKBNK (Akbank)</option>
+                  </>
+                )}
               </select>
             </div>
             

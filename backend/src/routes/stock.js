@@ -220,8 +220,9 @@ router.get('/:ticker/fundamental', asyncHandler(async (req, res) => {
 // Tam indikatör analizi - sistemde olmayan hisseler de dahil
 router.get('/:ticker/analyze', asyncHandler(async (req, res) => {
   const { ticker } = req.params;
-  const { period = '3mo' } = req.query;
-  const result = await getAnalyzeStock(ticker.toUpperCase(), period);
+  const { period = '3mo', force = 'false' } = req.query;
+  const isForce = force === 'true';
+  const result = await getAnalyzeStock(ticker.toUpperCase(), period, isForce);
   res.json(result);
 }));
 

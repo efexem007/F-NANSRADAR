@@ -1,0 +1,16 @@
+{
+  "name": "finansradar-root",
+  "version": "1.0.0",
+  "description": "FinansRadar Root Workspace Manager",
+  "scripts": {
+    "dev:backend": "cd backend && npm run dev",
+    "dev:frontend": "cd frontend && npm run dev",
+    "dev": "npm run clean:ports && concurrently \"npm run dev:backend\" \"npm run dev:frontend\"",
+    "clean:ports": "npx kill-port 3001 5173",
+    "install:all": "npm install && cd backend && npm install && cd ../frontend && npm install"
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.2",
+    "kill-port": "^2.0.1"
+  }
+}

@@ -225,34 +225,36 @@ const memCache = new Map();
 /**
  * Ana analiz fonksiyonunun önbellekli versiyonu
  */
-export async function getAnalyzeStock(ticker, period = '3mo') {
+export async function getAnalyzeStock(ticker, period = '3mo', force = false) {
   const cacheKey = `${ticker}-${period}`;
   
-  // 1. Memory cache kontrol (5 dakika)
+  // 1. Memory cache kontrol (force=true ise atla)
   const memData = memCache.get(cacheKey);
-  if (memData && (Date.now() - memData.ts < 5 * 60 * 1000)) {
+  if (!force && memData && (Date.now() - memData.ts < 5 * 60 * 1000)) {
     return memData.result;
   }
 
   // 2. DB (Persisted) cache kontrol (SignalHistory üzerinden)
-  const dbCache = await prisma.signalHistory.findFirst({
-    where: { ticker: ticker.toUpperCase() },
-    orderBy: { createdAt: 'desc' }
-  }).catch(() => null);
+  if (!force) {
+    const dbCache = await prisma.signalHistory.findFirst({
+      where: { ticker: ticker.toUpperCase() },
+      orderBy: { createdAt: 'desc' }
+    }).catch(() => null);
 
-  if (dbCache && dbCache.details) {
-    try {
-      const cachedResult = JSON.parse(dbCache.details);
-      // Eğer veri 1 saatten yeniyse direkt döndür (Stale-While-Revalidate tetiklemeden)
-      if (Date.now() - new Date(dbCache.createdAt).getTime() < 60 * 60 * 1000) {
+    if (dbCache && dbCache.details) {
+      try {
+        const cachedResult = JSON.parse(dbCache.details);
+        // Eğer veri 1 saatten yeniyse direkt döndür (Stale-While-Revalidate tetiklemeden)
+        if (Date.now() - new Date(dbCache.createdAt).getTime() < 60 * 60 * 1000) {
+          return cachedResult;
+        }
+        
+        // Eğer veri eski ise, arka planda güncellerken ESKİ veriyi döndür (Kullanıcı bekletilmez)
+        analyzeAndCache(ticker, period).catch(console.error);
         return cachedResult;
+      } catch (e) {
+        console.warn("Cache parse hatası:", e);
       }
-      
-      // Eğer veri eski ise, arka planda güncellerken ESKİ veriyi döndür (Kullanıcı bekletilmez)
-      analyzeAndCache(ticker, period).catch(console.error);
-      return cachedResult;
-    } catch (e) {
-      console.warn("Cache parse hatası:", e);
     }
   }
 
@@ -283,7 +285,7 @@ async function analyzeAndCache(ticker, period) {
 /**
  * Ana analiz fonksiyonu - v5.0 (7 Kademeli + Tahmin + Pipeline + Impact)
  */
-async function analyzeStock(ticker, period = '3mo') {
+export async function analyzeStock(ticker, period = '3mo') {
   // Tahmin için uzun veri lazım - fallback olarak normal period kullan
   const longPeriod = period === '1mo' ? '6mo' : period === '3mo' ? '1y' : period === '6mo' ? '2y' : '2y';
   
