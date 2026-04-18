@@ -59,12 +59,12 @@ model FundamentalData {
   id                 String   @id @default(uuid())
   stockTicker        String
   period             String
-  currentAssets      Float
-  currentLiabilities Float
+  currentAssets      Float?
+  currentLiabilities Float?
   inventory          Float?
-  totalAssets        Float
-  equity             Float
-  netSales           Float
+  totalAssets        Float?
+  equity             Float?
+  netSales           Float?
   grossProfit        Float?
   ebitda             Float?
   netProfit          Float?

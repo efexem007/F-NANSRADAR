@@ -20,6 +20,7 @@ import reportRoutes    from './routes/report.js';
 import backtestRoutes  from './routes/backtest.js';
 import scanRoutes      from './routes/scan.js';
 import universalRoutes from './routes/universal.js';
+import watchlistRoutes from './routes/watchlist.js';
 
 import aiRoutes        from './routes/ai.js';
 import predictionRoutes from './routes/prediction.js';
@@ -67,6 +68,7 @@ app.use('/api/report',    reportLimiter,    reportRoutes);
 app.use('/api/backtest',                    backtestRoutes);
 app.use('/api/scan',      scanLimiter,      scanRoutes);
 app.use('/api/universal', universalLimiter, universalRoutes);
+app.use('/api/watchlist',                   watchlistRoutes);
 
 app.use('/api/ai',                          aiRoutes);
 app.use('/api/prediction',                  predictionRoutes);
@@ -151,6 +153,47 @@ cron.schedule('0 9,13,18 * * 1-5', async () => {
 cron.schedule('0 2 * * *', async () => {
   await cache.deleteCachePattern('*');
   logger.info('Gece cache temizlendi');
+});
+
+// 🤖 OTONOM YAPAY ZEKA AJANI 🤖
+// BIST kapanışından sonra her hafta içi akşam 18:30'da çalışır
+cron.schedule('30 18 * * 1-5', async () => {
+  logger.info('🤖 Otonom Ajan uyandı: Tüm piyasa otomatik olarak taranıyor (GÜN SONU).');
+  try {
+    const { createRequire } = await import('module');
+    const require2 = createRequire(import.meta.url);
+    const bistMaster = require2('./data/bistMaster.json');
+    const { analyzeStock } = await import('./services/analysis.js');
+
+    const allTickers = [...(bistMaster.bist30 || [])];
+    const uniqueTickers = [...new Set(allTickers)]; // Şimdilik BIST30 ile test (hız için)
+
+    let strongBuys = [];
+
+    for (let symbol of uniqueTickers) {
+      try {
+        const result = await analyzeStock(`${symbol}.IS`);
+        if (result.signal === 'GÜÇLÜ AL' || result.signal === 'GUCLU AL') {
+          strongBuys.push({ symbol, score: result.finalScore, price: result.currentPrice });
+        }
+      } catch(e) { }
+      // Rate limit koruması
+      await new Promise(r => setTimeout(r, 1000));
+    }
+
+    if (strongBuys.length > 0) {
+      logger.info(`📧 OTONOM BİLDİRİM SİSTEMİ: ${strongBuys.length} adet GÜÇLÜ AL fırsatı tespit edildi!`);
+      // TODO: Gerçek NodeMailer veya Telegram Botu tetiklemesi burada yapılabilir:
+      // sendEmail(user.email, "Günün Fırsatları", compileTemplate(strongBuys));
+      console.log('------------ GÜNÜN FIRSATLARI ------------');
+      strongBuys.forEach(s => console.log(`🚀 ${s.symbol} - Skor: ${s.score}/100 - Fiyat: ₺${s.price}`));
+      console.log('------------------------------------------');
+    } else {
+      logger.info('🤖 Otonom Ajan: Bugün için yeni GÜÇLÜ AL fırsatı bulunamadı.');
+    }
+  } catch (error) {
+    logger.error('Otonom ajan çalışırken hata ile karşılaştı:', error.message);
+  }
 });
 
 // ─── Startup ──────────────────────────────────────────────────────────────

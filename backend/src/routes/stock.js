@@ -12,7 +12,7 @@ import { Router } from 'express';
 import prisma from '../lib/prisma.js';
 import { asyncHandler } from '../lib/asyncHandler.js';
 import { fetchStockPrices } from '../services/yahooFinance.js';
-import { analyzeStock } from '../services/analysis.js';
+import { getAnalyzeStock } from '../services/analysis.js';
 import { getPredictionHistory } from '../services/predictionHistory.js';
 import {
   validateTicker,
@@ -221,16 +221,22 @@ router.get('/:ticker/fundamental', asyncHandler(async (req, res) => {
 router.get('/:ticker/analyze', asyncHandler(async (req, res) => {
   const { ticker } = req.params;
   const { period = '3mo' } = req.query;
-  const result = await analyzeStock(ticker.toUpperCase(), period);
+  const result = await getAnalyzeStock(ticker.toUpperCase(), period);
   res.json(result);
 }));
 
 // Tahmin geçmişi karşılaştırma
-router.get('/:ticker/history', asyncHandler(async (req, res) => {
-  const { ticker } = req.params;
-  const limit = Math.min(parseInt(req.query.limit) || 20, 50);
-  const history = await getPredictionHistory(ticker.toUpperCase(), limit);
-  res.json(history);
+import { auditStockData, auditAllData } from '../services/dataAudit.js';
+// ... existing imports ...
+
+router.get('/:ticker/audit', asyncHandler(async (req, res) => {
+  const result = await auditStockData(req.params.ticker.toUpperCase());
+  res.json(result);
+}));
+
+router.get('/audit/all', asyncHandler(async (req, res) => {
+  const result = await auditAllData();
+  res.json(result);
 }));
 
 export default router;

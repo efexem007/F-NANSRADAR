@@ -6,13 +6,13 @@ import rateLimit from 'express-rate-limit';
 
 // ─── Endpoint bazlı limitler ───────────────────────────────────────────────
 const LIMITS = {
-  auth:      { windowMs: 15 * 60 * 1000, max: 10,  message: 'Çok fazla giriş denemesi, 15 dakika bekleyin' },
-  stock:     { windowMs:       60 * 1000, max: 30,  message: 'Stok API limiti aşıldı, 1 dakika bekleyin'   },
-  scan:      { windowMs:  5 * 60 * 1000, max: 10,  message: 'Tarama limiti aşıldı, 5 dakika bekleyin'     },
-  universal: { windowMs:  5 * 60 * 1000, max: 10,  message: 'Universal tarama limiti aşıldı'              },
-  macro:     { windowMs: 10 * 60 * 1000, max: 20,  message: 'Makro veri limiti aşıldı'                    },
-  report:    { windowMs: 60 * 60 * 1000, max: 5,   message: 'Rapor oluşturma limiti aşıldı'               },
-  default:   { windowMs: 15 * 60 * 1000, max: 200, message: 'İstek limiti aşıldı'                         },
+  auth:      { windowMs: 1 * 60 * 1000, max: 1000, message: 'Çok fazla giriş denemesi' },
+  stock:     { windowMs:     60 * 1000, max: 2000, message: 'Stok API limiti aşıldı' },
+  scan:      { windowMs: 1 * 60 * 1000, max: 500,  message: 'Tarama limiti aşıldı' },
+  universal: { windowMs: 1 * 60 * 1000, max: 500,  message: 'Universal tarama limiti aşıldı' },
+  macro:     { windowMs: 1 * 60 * 1000, max: 1000, message: 'Makro veri limiti aşıldı' },
+  report:    { windowMs: 1 * 60 * 1000, max: 500,  message: 'Rapor oluşturma limiti aşıldı' },
+  default:   { windowMs: 1 * 60 * 1000, max: 5000, message: 'İstek limiti aşıldı' },
 };
 
 function makeLimit(config) {

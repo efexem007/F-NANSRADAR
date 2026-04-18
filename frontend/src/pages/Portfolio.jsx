@@ -1,7 +1,9 @@
 import { useState, useEffect } from 'react'
-import { PieChart as PieIcon, Plus, Trash2, Download, Zap, X } from 'lucide-react'
+import { PieChart as PieIcon, Plus, Trash2, Download, Zap, X, FileText } from 'lucide-react'
 import { PieChart, Pie, Cell, Tooltip, Legend, ResponsiveContainer } from 'recharts'
 import * as XLSX from 'xlsx'
+import jsPDF from 'jspdf'
+import 'jspdf-autotable'
 import client from '../api/client'
 import { formatCurrency, formatPercent } from '../utils/formatters'
 import { STOCK_COLORS, getColor } from '../constants/colors'
@@ -54,6 +56,62 @@ const Portfolio = () => {
     XLSX.writeFile(wb, `portfoy_${new Date().toLocaleDateString('tr-TR')}.xlsx`)
   }
 
+  // Phase 4: Kapsamlı Portföy Raporu (PDF)
+  const exportToPDF = () => {
+    const doc = new jsPDF()
+    const dateStr = new Date().toLocaleDateString('tr-TR')
+    
+    // Header
+    doc.setFontSize(22)
+    doc.setTextColor(139, 92, 246) // Purple color
+    doc.text('FinansRadar - Portfoy Raporu', 14, 20)
+    
+    doc.setFontSize(11)
+    doc.setTextColor(100)
+    doc.text(`Tarih: ${dateStr}`, 14, 28)
+    
+    // Summary Data
+    doc.setFontSize(12)
+    doc.setTextColor(0)
+    doc.text(`Toplam Maliyet: ${formatCurrency(summary.totalCost || 0)}`, 14, 40)
+    doc.text(`Guncel Deger: ${formatCurrency(summary.totalValue || 0)}`, 14, 47)
+    
+    const isProfit = (summary.totalPL || 0) >= 0
+    doc.setTextColor(isProfit ? 22 : 220, isProfit ? 163 : 38, isProfit ? 74 : 38) // Green or Red
+    doc.text(`Net K/Z: ${isProfit ? '+' : ''}${formatCurrency(summary.totalPL || 0)}  (%${formatPercent(summary.totalPLPercent || 0)})`, 14, 54)
+
+    // Table Data
+    const tableColumn = ["Hisse", "Adet", "Ort. Maliyet", "Guncel Fiyat", "Toplam Deger", "Net K/Z"]
+    const tableRows = []
+
+    data.items?.forEach(item => {
+      const rowData = [
+        item.ticker,
+        item.shares.toString(),
+        formatCurrency(item.avgCost),
+        formatCurrency(item.currentPrice),
+        formatCurrency(item.value),
+        `${formatCurrency(item.pl)} (%${formatPercent(item.plPercent)})`
+      ]
+      tableRows.push(rowData)
+    })
+
+    doc.autoTable({
+      startY: 65,
+      head: [tableColumn],
+      body: tableRows,
+      theme: 'grid',
+      headStyles: { fillColor: [15, 23, 42], textColor: 255 },
+      alternateRowStyles: { fillColor: [248, 250, 252] },
+    })
+    
+    doc.setFontSize(10)
+    doc.setTextColor(150)
+    doc.text('Yapay Zeka Destekli FinansRadar Tarafindan Olusturulmustur.', 14, doc.lastAutoTable.finalY + 15)
+
+    doc.save(`portfoy_raporu_${dateStr}.pdf`)
+  }
+
   // Phase 2: HRP Optimizasyon (Yapay Zeka)
   const handleOptimize = async () => {
     if (data.items.length < 2) {
@@ -89,6 +147,9 @@ const Portfolio = () => {
         <div className="flex gap-3">
           <button onClick={handleOptimize} disabled={optimizing || data.items.length < 2} className="btn-outline text-amber-400 border-amber-500/30 hover:!border-amber-500/50 hover:!text-amber-300 disabled:opacity-50">
             <Zap size={14} className={optimizing ? "animate-pulse" : ""} /> {optimizing ? 'Optimize Ediliyor...' : 'Yapay Zeka ile Optimize Et'}
+          </button>
+          <button onClick={exportToPDF} className="btn-outline text-rose-400 border-rose-500/30 hover:!border-rose-500/50 hover:!text-rose-300">
+            <FileText size={14} /> PDF Rapor
           </button>
           <button onClick={exportToExcel} className="btn-outline text-green-400 border-green-500/30 hover:!border-green-500/50 hover:!text-green-300">
             <Download size={14} /> Excel

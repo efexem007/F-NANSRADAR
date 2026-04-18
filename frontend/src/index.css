@@ -433,3 +433,26 @@ input[type="range"]::-webkit-slider-runnable-track {
 .max-h-\[90vh\]::-webkit-scrollbar-thumb:hover {
   background: rgba(139, 92, 246, 0.5);
 }
+/* ------------------------------------------- */
+/*  v6.0 Skeleton & Utility Styles             */
+/* ------------------------------------------- */
+
+@keyframes skeletonLoading {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+.skeleton {
+  background: linear-gradient(90deg, rgba(255,255,255,0.03) 25%, rgba(255,255,255,0.08) 50%, rgba(255,255,255,0.03) 75%);
+  background-size: 200% 100%;
+  animation: skeletonLoading 1.5s infinite;
+  border-radius: 4px;
+}
+
+.search-highlight {
+  background: rgba(139, 92, 246, 0.3);
+  color: #a78bfa;
+  font-weight: 700;
+  border-radius: 2px;
+  padding: 0 1px;
+}

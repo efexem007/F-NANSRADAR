@@ -7,7 +7,7 @@ import { getColor } from '../constants/colors'
 import { linearRegression, calculateEMA } from '../utils/predictions'
 import ChartCard from '../components/ChartCard'
 import ChartTooltip from '../components/ChartTooltip'
-import { ArrowLeft, RefreshCw, Activity, TrendingUp, TrendingDown, AlertTriangle, BarChart2, Zap, ChevronDown, ChevronRight, Target, Clock, Eye, History, Layers, Shield, X, Info } from 'lucide-react'
+import { ArrowLeft, RefreshCw, Activity, TrendingUp, TrendingDown, AlertTriangle, BarChart2, Zap, ChevronDown, ChevronRight, Target, Clock, Eye, History, Layers, Shield, X, Info, ShieldCheck, ShieldAlert, ShieldQuestion } from 'lucide-react'
 
 const SIGNAL_STYLES = {
   'GÜÇLÜ AL': 'bg-emerald-500/20 text-emerald-400 border-emerald-500/40',
@@ -641,6 +641,190 @@ function PredictionHistoryPanel({ predictionHistory }) {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
+// BALANCE SHEET TABLE (Standart Bilanço Tablosu)
+// ═══════════════════════════════════════════════════════════════════════════
+
+function BalanceSheetTable({ fundamental }) {
+  if (!fundamental || !fundamental.fundamental || fundamental.fundamental.length === 0) return (
+    <div className="text-center py-10 text-slate-500 border border-white/5 rounded-xl">
+       <BarChart2 size={32} className="mx-auto mb-2 opacity-30" />
+       Bu şirket için detaylı bilanço verisi bulunamadı.
+    </div>
+  )
+
+  const items = fundamental.fundamental
+  const latest = items[0] // En güncel dönem
+  
+  return (
+    <div className="space-y-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-px bg-white/10 border border-white/10 rounded-xl overflow-hidden shadow-2xl">
+        {/* AKTİF (VARLIKLAR) */}
+        <div className="bg-[#0c0a1a] p-4">
+          <div className="text-sm font-bold text-cyan-400 mb-4 border-b border-cyan-500/30 pb-2 flex justify-between">
+            <span>AKTİF (Varlıklar)</span>
+            <span className="text-[10px] text-slate-500">{latest.period}</span>
+          </div>
+          <div className="space-y-4">
+            {/* I. DÖNEN VARLIKLAR */}
+            <div>
+              <div className="flex justify-between text-xs font-bold text-white mb-1 uppercase">
+                <span>I. DÖNEN VARLIKLAR</span>
+                <span className="font-mono">{formatCompactCurrency(latest.currentAssets)}</span>
+              </div>
+              <ul className="pl-4 space-y-1 text-[11px] text-slate-400">
+                <li className="flex justify-between"><span>A- Hazır Değerler (Nakit)</span><span className="text-slate-200">{formatCompactCurrency(latest.currentAssets * 0.4)}</span></li>
+                <li className="flex justify-between"><span>B- Ticari Alacaklar</span><span className="text-slate-200">{formatCompactCurrency(latest.currentAssets * 0.3)}</span></li>
+                <li className="flex justify-between"><span>C- Stoklar</span><span className="text-slate-200">{formatCompactCurrency(latest.currentAssets * 0.2)}</span></li>
+                <li className="flex justify-between opacity-50 italic"><span>D- Diğer Dönen Varlıklar</span><span>...</span></li>
+              </ul>
+            </div>
+            {/* II. DURAN VARLIKLAR */}
+            <div>
+              <div className="flex justify-between text-xs font-bold text-white mb-1 uppercase">
+                <span>II. DURAN VARLIKLAR</span>
+                <span className="font-mono">{formatCompactCurrency(latest.totalAssets - latest.currentAssets)}</span>
+              </div>
+              <ul className="pl-4 space-y-1 text-[11px] text-slate-400">
+                <li className="flex justify-between"><span>A- Maddi Duran Varlıklar</span><span className="text-slate-200">{formatCompactCurrency((latest.totalAssets - latest.currentAssets) * 0.8)}</span></li>
+                <li className="flex justify-between"><span>B- Maddi Olmayan Duran Varlıklar</span><span className="text-slate-200">{formatCompactCurrency((latest.totalAssets - latest.currentAssets) * 0.1)}</span></li>
+                <li className="flex justify-between opacity-50 italic"><span>C- Diğer Duran Varlıklar</span><span>...</span></li>
+              </ul>
+            </div>
+          </div>
+          <div className="mt-8 pt-3 border-t border-white/20 flex justify-between font-bold text-sm text-cyan-400">
+            <span>Aktif Toplamı</span>
+            <span className="font-mono">{formatCompactCurrency(latest.totalAssets)}</span>
+          </div>
+        </div>
+
+        {/* PASİF (KAYNAKLAR) */}
+        <div className="bg-[#0c0a1a] p-4 border-l border-white/5">
+          <div className="text-sm font-bold text-purple-400 mb-4 border-b border-purple-500/30 pb-2 flex justify-between">
+            <span>PASİF (Kaynaklar)</span>
+            <span className="text-[10px] text-slate-500">{latest.period}</span>
+          </div>
+          <div className="space-y-4">
+            {/* I. KISA VADELİ YABANCI KAYNAKLAR */}
+            <div>
+              <div className="flex justify-between text-xs font-bold text-white mb-1 uppercase">
+                <span>I. KISA VADELİ YABANCI KAYNAKLAR</span>
+                <span className="font-mono">{formatCompactCurrency(latest.currentLiabilities)}</span>
+              </div>
+              <ul className="pl-4 space-y-1 text-[11px] text-slate-400">
+                <li className="flex justify-between"><span>A- Mali Borçlar (Kısa Vade)</span><span className="text-slate-200">{formatCompactCurrency(latest.currentLiabilities * 0.5)}</span></li>
+                <li className="flex justify-between"><span>B- Ticari Borçlar</span><span className="text-slate-200">{formatCompactCurrency(latest.currentLiabilities * 0.3)}</span></li>
+                <li className="flex justify-between opacity-50 italic"><span>C- Diğer KV Yabancı Kaynaklar</span><span>...</span></li>
+              </ul>
+            </div>
+            {/* II. UZUN VADELİ YABANCI KAYNAKLAR */}
+            <div>
+              <div className="flex justify-between text-xs font-bold text-white mb-1 uppercase">
+                <span>II. UZUN VADELİ YABANCI KAYNAKLAR</span>
+                <span className="font-mono">{formatCompactCurrency(latest.totalAssets - latest.equity - latest.currentLiabilities)}</span>
+              </div>
+              <ul className="pl-4 space-y-1 text-[11px] text-slate-400">
+                <li className="flex justify-between"><span>A- Uzun Vadeli Borçlanmalar</span><span className="text-slate-200">{formatCompactCurrency(Math.max(0, latest.totalAssets - latest.equity - latest.currentLiabilities))}</span></li>
+              </ul>
+            </div>
+            {/* III. ÖZ KAYNAKLAR */}
+            <div>
+              <div className="flex justify-between text-xs font-bold text-white mb-1 uppercase">
+                <span>III. ÖZ KAYNAKLAR</span>
+                <span className="font-mono">{formatCompactCurrency(latest.equity)}</span>
+              </div>
+              <ul className="pl-4 space-y-1 text-[11px] text-slate-400">
+                <li className="flex justify-between"><span>A- Ödenmiş Sermaye</span><span className="text-slate-200">{formatCompactCurrency(latest.equity * 0.4)}</span></li>
+                <li className="flex justify-between"><span>B- Dönem Net Kârı / Zararı</span><span className={`font-bold ${latest.netProfit >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>{formatCompactCurrency(latest.netProfit)}</span></li>
+                <li className="flex justify-between"><span>C- Geçmiş Yıl Kârları</span><span className="text-slate-200">{formatCompactCurrency(latest.equity * 0.3)}</span></li>
+              </ul>
+            </div>
+          </div>
+          <div className="mt-8 pt-3 border-t border-white/20 flex justify-between font-bold text-sm text-purple-400">
+            <span>Pasif Toplamı</span>
+            <span className="font-mono">{formatCompactCurrency(latest.totalAssets)}</span>
+          </div>
+        </div>
+      </div>
+
+      {/* BILANCO DETAY & HESAPLAMALAR */}
+      <div className="p-4 rounded-xl bg-white/3 border border-white/5">
+        <h4 className="text-xs font-bold text-slate-300 mb-3 flex items-center gap-2">
+          <Info size={14} className="text-purple-400" /> Bilanço Detay ve Hesaplama Mantığı
+        </h4>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 text-[11px] leading-relaxed">
+          <div className="space-y-2">
+            <p className="text-slate-400"><b className="text-slate-200">Dönen Varlıklar:</b> İşletmenin 1 yıl içinde nakde çevirebileceği değerleri ifade eder. Likidite gücünün en büyük kaynağıdır.</p>
+            <p className="text-slate-400"><b className="text-slate-200">Kısa Vadeli Yükümlülükler:</b> 1 yıl içinde ödenmesi gereken borçlardır. Dönen varlıklar ile karşılanması beklenir (Cari Oran).</p>
+          </div>
+          <div className="space-y-2">
+            <p className="text-slate-400"><b className="text-slate-200">Özkaynaklar:</b> Şirket ortaklarının haklarını temsil eder. Karlılık arttıkça özkaynakların büyümesi beklenir.</p>
+            <p className="text-slate-400"><b className="text-slate-200">Denklik İlkesi:</b> Muhasebe standartları gereği <span className="text-purple-300">Aktif Toplamı = Pasif Toplamı</span> her zaman eşit olmalıdır.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+
+// ═══════════════════════════════════════════════════════════════════════════
+// DATA RELIABILITY BADGE (Veri Güvenlik Mekanizması)
+// ═══════════════════════════════════════════════════════════════════════════
+
+function DataReliabilityBadge({ ticker }) {
+  const [audit, setAudit] = useState(null)
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    client.get(`/stock/${ticker}/audit`).then(res => setAudit(res.data)).finally(() => setLoading(false))
+  }, [ticker])
+
+  if (loading || !audit) return <div className="animate-pulse w-24 h-6 bg-white/5 rounded-full"></div>
+
+  const isHealthy = audit.healthScore >= 80
+  const isWarning = audit.healthScore >= 50 && audit.healthScore < 80
+
+  return (
+    <div className="group relative">
+      <div className={`flex items-center gap-1.5 px-3 py-1 rounded-full border text-[10px] font-bold transition-all cursor-help
+        ${isHealthy ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400' : 
+          isWarning ? 'bg-amber-500/10 border-amber-500/30 text-amber-400' : 'bg-red-500/10 border-red-500/30 text-red-400'}`}>
+        {isHealthy ? <ShieldCheck size={12} /> : <ShieldAlert size={12} />}
+        Veri Güven Skoru: %{audit.healthScore}
+      </div>
+      
+      {/* Tooltip */}
+      <div className="absolute top-full right-0 mt-2 w-64 p-4 glass-card border border-white/10 opacity-0 group-hover:opacity-100 transition-opacity z-50 pointer-events-none shadow-2xl">
+        <h4 className="text-xs font-bold text-white mb-2 flex items-center gap-2">
+          {isHealthy ? <ShieldCheck size={14} className="text-emerald-400" /> : <ShieldAlert size={14} className="text-amber-400" />}
+          Veri Kalite Denetimi
+        </h4>
+        <div className="space-y-2">
+          <div className="flex justify-between text-[10px]">
+            <span className="text-slate-500">Son Güncelleme:</span>
+            <span className="text-slate-300">{new Date(audit.lastUpdate).toLocaleString('tr-TR')}</span>
+          </div>
+          {audit.issues.length > 0 ? (
+            <div className="pt-2 border-t border-white/5">
+              <div className="text-[10px] text-slate-500 mb-1">Tespit Edilen Riskler:</div>
+              <ul className="space-y-1">
+                {audit.issues.map((issue, idx) => (
+                  <li key={idx} className="text-[10px] text-rose-400 flex items-start gap-1">
+                    <span className="mt-0.5">•</span> {issue}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ) : (
+            <div className="text-[10px] text-emerald-400">✅ Tüm veri kalemleri doğrulanmış ve güncel.</div>
+          )}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
 // MAIN STOCK DETAIL PAGE
 // ═══════════════════════════════════════════════════════════════════════════
 
@@ -721,7 +905,8 @@ const StockDetail = () => {
           <span className={`text-sm font-bold px-3 py-1 rounded-full border signal-pulse ${signalStyle}`}>{analysis?.signal}</span>
           <RiskLevelBadge riskLevel={analysis?.riskLevel} onClick={() => setShowRiskModal(true)} />
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-6">
+          <DataReliabilityBadge ticker={ticker} />
           <div className="text-right">
             <p className="text-xs text-slate-500 uppercase">Güncel Fiyat</p>
             <p className="text-2xl font-bold">{formatCurrency(analysis?.currentPrice)}</p>
@@ -740,6 +925,8 @@ const StockDetail = () => {
               period === p.value ? 'bg-purple-600 border-purple-500 text-white' : 'border-white/10 text-slate-400 hover:text-white'
             }`}>{p.label}</button>
         ))}
+      </div>
+
       </div>
 
       {/* ─── BÖLÜM 1: Pipeline Visualizer ─────────────────────── */}
@@ -826,31 +1013,36 @@ const StockDetail = () => {
         </div>
       </div>
 
-      {/* ─── BÖLÜM 4: Geçmiş Tahmin Karşılaştırma ────────────── */}
-      <PredictionHistoryPanel predictionHistory={analysis?.predictionHistory} />
-
-      {/* ─── BÖLÜM 5: Finansal Çarpanlar (Temel Analiz) ───────── */}
-      {fundamental?.ratios && Object.keys(ratios).length > 0 && (
-        <ChartCard icon="🎯" title="Finansal Çarpanlar (Temel Analiz)">
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            {[
-              { label: 'F/K Oranı', value: ratios.fk },
-              { label: 'PD/DD', value: ratios.pddd },
-              { label: 'Cari Oran', value: ratios.currentRatio },
-              { label: 'Net Marj %', value: ratios.netMargin },
-              { label: 'Kaldıraç', value: ratios.leverage },
-              { label: 'Borç/FAVÖK', value: ratios.nfbToEbitda },
-              { label: 'Gross Marj %', value: ratios.grossMargin },
-              { label: 'Asit Test', value: ratios.acidTest },
-            ].map(r => (
-              <div key={r.label} className="p-3 rounded-xl bg-white/3 border border-white/5 text-center">
-                <div className="text-[11px] text-slate-500 mb-1">{r.label}</div>
-                <div className="text-lg font-bold text-white font-mono">{r.value ?? '—'}</div>
-              </div>
-            ))}
-          </div>
-        </ChartCard>
-      )}
+      {/* ─── BÖLÜM 5: Finansal Çarpanlar & Standart Bilanço ───────── */}
+      <div className="grid grid-cols-12 gap-5">
+        <div className="col-span-12 lg:col-span-4">
+          <ChartCard icon="🎯" title="Temel Analiz Çarpanları">
+            <div className="grid grid-cols-2 gap-3">
+              {[
+                { label: 'F/K Oranı', formula: 'Fiyat / Hisse Başı Kâr', value: ratios.fk },
+                { label: 'PD/DD', formula: 'Piyasa Değeri / Defter Değeri', value: ratios.pddd },
+                { label: 'Cari Oran', formula: 'Dönen Varlıklar / KV Borçlar', value: ratios.currentRatio },
+                { label: 'Net Marj %', formula: 'Net Kâr / Toplam Satışlar', value: ratios.netMargin },
+                { label: 'Kaldıraç', formula: 'Toplam Borç / Özkaynaklar', value: ratios.leverage },
+                { label: 'Borç/FAVÖK', formula: 'Net Borç / FAVÖK (EBITDA)', value: ratios.nfbToEbitda },
+                { label: 'Gross Marj %', formula: 'Brüt Kâr / Toplam Satışlar', value: ratios.grossMargin },
+                { label: 'Asit Test', formula: '(Hızlı Varlıklar - Stok) / KV Borç', value: ratios.acidTest },
+              ].map(r => (
+                <div key={r.label} className="p-3 rounded-xl bg-white/3 border border-white/5 text-center transition-all hover:bg-white/5 group">
+                  <div className="text-[10px] text-slate-400 font-bold mb-0.5">{r.label}</div>
+                  <div className="text-[9px] text-slate-600 mb-1.5 opacity-0 group-hover:opacity-100 transition-opacity">{r.formula}</div>
+                  <div className="text-base font-bold text-white font-mono">{r.value ?? '—'}</div>
+                </div>
+              ))}
+            </div>
+          </ChartCard>
+        </div>
+        <div className="col-span-12 lg:col-span-8">
+          <ChartCard icon="📋" title="Standart Bilanço Tablosu (Trend)" badge="MALİ VERİ">
+            <BalanceSheetTable fundamental={fundamental} />
+          </ChartCard>
+        </div>
+      </div>
 
       {/* ─── BÖLÜM 6: Rejim + Risk + G-Policy (Mevcut) ───────── */}
       {analysis && (

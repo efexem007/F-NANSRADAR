@@ -219,10 +219,71 @@ _Hissedeki Durum:_ En yakın Destek: **${sr.closestSupport || 'Yok'} TL** | En y
   return lines.join('\n');
 }
 
+// Bellek içi basit önbellek (Sistem açıkken çok hızlı yanıt için)
+const memCache = new Map();
+
+/**
+ * Ana analiz fonksiyonunun önbellekli versiyonu
+ */
+export async function getAnalyzeStock(ticker, period = '3mo') {
+  const cacheKey = `${ticker}-${period}`;
+  
+  // 1. Memory cache kontrol (5 dakika)
+  const memData = memCache.get(cacheKey);
+  if (memData && (Date.now() - memData.ts < 5 * 60 * 1000)) {
+    return memData.result;
+  }
+
+  // 2. DB (Persisted) cache kontrol (SignalHistory üzerinden)
+  const dbCache = await prisma.signalHistory.findFirst({
+    where: { ticker: ticker.toUpperCase() },
+    orderBy: { createdAt: 'desc' }
+  }).catch(() => null);
+
+  if (dbCache && dbCache.details) {
+    try {
+      const cachedResult = JSON.parse(dbCache.details);
+      // Eğer veri 1 saatten yeniyse direkt döndür (Stale-While-Revalidate tetiklemeden)
+      if (Date.now() - new Date(dbCache.createdAt).getTime() < 60 * 60 * 1000) {
+        return cachedResult;
+      }
+      
+      // Eğer veri eski ise, arka planda güncellerken ESKİ veriyi döndür (Kullanıcı bekletilmez)
+      analyzeAndCache(ticker, period).catch(console.error);
+      return cachedResult;
+    } catch (e) {
+      console.warn("Cache parse hatası:", e);
+    }
+  }
+
+  // 3. İlk defa açılıyorsa veya cache yoksa mecbur bekle
+  return await analyzeAndCache(ticker, period);
+}
+
+async function analyzeAndCache(ticker, period) {
+  const result = await analyzeStock(ticker, period);
+  
+  // Önbelleğe kaydet
+  memCache.set(`${ticker}-${period}`, { ts: Date.now(), result });
+  
+  // DB'ye kaydet (SignalHistory)
+  await prisma.signalHistory.create({
+    data: {
+      ticker: ticker.toUpperCase(),
+      signal: result.signal,
+      score: result.finalScore,
+      price: result.currentPrice || 0,
+      details: JSON.stringify(result)
+    }
+  }).catch(err => console.error("Cache save hatası:", err));
+
+  return result;
+}
+
 /**
  * Ana analiz fonksiyonu - v5.0 (7 Kademeli + Tahmin + Pipeline + Impact)
  */
-export async function analyzeStock(ticker, period = '3mo') {
+async function analyzeStock(ticker, period = '3mo') {
   // Tahmin için uzun veri lazım - fallback olarak normal period kullan
   const longPeriod = period === '1mo' ? '6mo' : period === '3mo' ? '1y' : period === '6mo' ? '2y' : '2y';
   

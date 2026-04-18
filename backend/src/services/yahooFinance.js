@@ -1,11 +1,12 @@
+
 import YahooFinance from 'yahoo-finance2';
 const yahooFinance = new YahooFinance();
+
 export const fetchStockPrices = async (ticker, period = '3mo', interval = '1d') => {
   try {
     let query = ticker.toUpperCase();
-    if (!query.includes('.') && !query.includes('-') && !query.includes('=') && !query.includes('^')) {
-      query = `${query}.IS`;
-    }
+    if (!query.includes('.') && !query.includes('-')) query = `${query}.IS`;
+    
     const period1 = new Date();
     switch(period) {
       case '1mo': period1.setMonth(period1.getMonth() - 1); break;
@@ -16,9 +17,7 @@ export const fetchStockPrices = async (ticker, period = '3mo', interval = '1d') 
       case '5y': period1.setFullYear(period1.getFullYear() - 5); break;
       default: period1.setMonth(period1.getMonth() - 3);
     }
-    const period2 = new Date(); // now
-    const opts = { period1: period1.toISOString(), period2: period2.toISOString(), interval };
-    const chartData = await yahooFinance.chart(query, opts);
+    const chartData = await yahooFinance.chart(query, { period1: period1.toISOString(), interval });
     
     if (!chartData || !chartData.quotes) return { priceData: [], currentPrice: null };
     
@@ -28,19 +27,62 @@ export const fetchStockPrices = async (ticker, period = '3mo', interval = '1d') 
     const currentPrice = priceData[priceData.length - 1]?.close || null;
     return { priceData, currentPrice };
   } catch (error) {
-    console.error(`Yahoo Finance hatasi (${ticker}):`, error.message);
+    console.warn(`[Yahoo Price] ${ticker} hatası:`, error.message);
     return { priceData: [], currentPrice: null };
   }
 };
 
-export const fetchCurrentPrice = async (ticker) => {
+export const fetchStockFundamentals = async (ticker) => {
   try {
     let query = ticker.toUpperCase();
-    if (!query.includes('.') && !query.includes('-') && !query.includes('=') && !query.includes('^')) {
-      query = `${query}.IS`;
-    }
-    const quote = await yahooFinance.quote(query);
-    return quote.regularMarketPrice;
+    if (!query.includes('.') && !query.includes('-')) query = `${query}.IS`;
+
+    // Daha fazla modül ekleyerek veri şansını artırıyoruz
+    const summary = await yahooFinance.quoteSummary(query, { 
+      modules: ['assetProfile', 'financialData', 'defaultKeyStatistics', 'incomeStatementHistory', 'balanceSheetHistory'] 
+    }).catch(() => null);
+
+    if (!summary) return null;
+
+    const profile = summary.assetProfile || {};
+    const fd = summary.financialData || {};
+    const stats = summary.defaultKeyStatistics || {};
+    const income = summary.incomeStatementHistory?.incomeStatementHistory?.[0] || {};
+    const balance = summary.balanceSheetHistory?.balanceSheetHistory?.[0] || {};
+
+    // Brüt Kar (Gross Profit) tespiti
+    const grossProfit = income.grossProfit || (fd.totalRevenue * (fd.grossMargins || 0.2)) || null;
+
+    return {
+      profile: {
+        sector: profile.sector || 'Diğer',
+        industry: profile.industry || 'Genel',
+        description: profile.longBusinessSummary,
+        name: summary.price?.longName || ticker
+      },
+      ratios: {
+        currentRatio: fd.currentRatio || (balance.totalCurrentAssets / balance.totalCurrentLiabilities) || null,
+        fk: fd.trailingPE || stats.forwardPE || null,
+        pddd: stats.priceToBook || (fd.marketCap / fd.totalEquity) || null,
+        netMargin: fd.profitMargins ? fd.profitMargins * 100 : (income.netIncome / fd.totalRevenue * 100),
+        leverage: fd.debtToEquity ? fd.debtToEquity / 100 : (fd.totalDebt / fd.totalEquity),
+        nfbToEbitda: fd.ebitda > 0 ? ((fd.totalDebt - fd.totalCash) / fd.ebitda) : null,
+        grossMargin: fd.grossMargins ? fd.grossMargins * 100 : (income.grossProfit / fd.totalRevenue * 100),
+        acidTest: fd.quickRatio || ((balance.totalCurrentAssets - balance.inventory) / balance.totalCurrentLiabilities) || null
+      },
+      fundamental: {
+        period: balance.endDate ? new Date(balance.endDate).getFullYear().toString() : new Date().getFullYear().toString(),
+        totalAssets: fd.totalAssets || balance.totalAssets,
+        equity: fd.totalEquity || balance.totalStockholderEquity,
+        currentAssets: balance.totalCurrentAssets || fd.totalCash,
+        currentLiabilities: balance.totalCurrentLiabilities,
+        netSales: fd.totalRevenue || income.totalRevenue,
+        ebitda: fd.ebitda,
+        netProfit: fd.netIncomeToCommon || income.netIncome
+      }
+    };
+  } catch (error) {
+    console.error(`Bilanço hatası (${ticker}):`, error.message);
+    return null;
   }
-  catch (error) { return null; }
 };
