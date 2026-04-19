@@ -63,7 +63,7 @@ router.get('/history', asyncHandler(async (req, res) => {
 }));
 
 // ═══════════════════════════════════════════════════════════════════════════
-// PİYASAYI TARA — SSE (Server-Sent Events) ile canlı akış (OPTİMİZE)
+// PİYASAYI TARA — SSE (Server-Sent Events) ile canlı akış (OPTİMİZE v2)
 // ═══════════════════════════════════════════════════════════════════════════
 router.get('/scan-all', async (req, res) => {
   res.writeHead(200, {
@@ -73,16 +73,24 @@ router.get('/scan-all', async (req, res) => {
     'X-Accel-Buffering': 'no',
   });
 
-  const write = (event, data) => {
-    try { res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`); } catch(e) {}
+  // Client kopma algılama
+  let clientDisconnected = false;
+  req.on('close', () => { clientDisconnected = true; });
+
+  // Güvenli yazma — bağlantı kopmuşsa çökmez
+  const safeSend = (event, data) => {
+    if (clientDisconnected) return;
+    try { res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`); }
+    catch(e) { clientDisconnected = true; }
   };
 
-  // Keep-alive: her 12 saniyede bir boş ping gönder (nginx/proxy timeout'a karşı)
+  // Keep-alive ping (12sn'de bir)
   const keepAlive = setInterval(() => {
-    try { res.write(': ping\n\n'); } catch(e) { clearInterval(keepAlive); }
+    if (clientDisconnected) { clearInterval(keepAlive); return; }
+    try { res.write(': ping\n\n'); } catch(e) { clientDisconnected = true; clearInterval(keepAlive); }
   }, 12000);
 
-  // Timeout wrapper: bir hisse çok uzun sürerse otomatik atla
+  // Timeout wrapper: bir hisse 20sn'yi aşarsa otomatik atla
   const withTimeout = (fn, ms = 20000) => Promise.race([
     fn(),
     new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout (20s)')), ms))
@@ -97,13 +105,17 @@ router.get('/scan-all', async (req, res) => {
     const uniqueTickers = [...new Set(stocks.map(s => s.ticker.replace('.IS', '')))];
     const total = uniqueTickers.length;
 
-    write('init', { total });
+    safeSend('init', { total });
 
-    const CONCURRENCY = 4; // 4 paralel hisse — Yahoo rate limit için optimal denge
+    const CONCURRENCY = 4;
     for (let i = 0; i < uniqueTickers.length; i += CONCURRENCY) {
+      if (clientDisconnected) break; // Kullanıcı iptal ettiyse döngüyü kes
+
       const chunk = uniqueTickers.slice(i, i + CONCURRENCY);
       
       await Promise.allSettled(chunk.map(async (symbol) => {
+        if (clientDisconnected) return;
+
         const ticker = `${symbol}.IS`;
         processedCount++;
         try {
@@ -122,20 +134,21 @@ router.get('/scan-all', async (req, res) => {
             total,
           };
 
-          write('signal', signalData);
+          safeSend('signal', signalData);
           successCount++;
         } catch (err) {
-          write('error', { ticker: symbol, error: err.message, index: processedCount, total });
+          safeSend('error', { ticker: symbol, error: err.message, index: processedCount, total });
           failCount++;
         }
       }));
 
-      // Her chunk'tan sonra kısa bekleme (Yahoo API koruması)
-      await new Promise(r => setTimeout(r, 400));
+      if (!clientDisconnected) {
+        await new Promise(r => setTimeout(r, 400));
+      }
     }
   } catch (fatalErr) {
     console.error('[scan-all FATAL]:', fatalErr.message);
-    write('error', { ticker: 'SYSTEM', error: fatalErr.message, index: 0, total: 0 });
+    safeSend('error', { ticker: 'SYSTEM', error: fatalErr.message, index: 0, total: 0 });
   } finally {
     clearInterval(keepAlive);
     write('done', { total: processedCount, success: successCount, failed: failCount });

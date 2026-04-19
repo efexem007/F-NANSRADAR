@@ -30,115 +30,127 @@ router.get('/scan-stream', async (req, res) => {
     'Content-Type': 'text/event-stream',
     'Cache-Control': 'no-cache',
     'Connection': 'keep-alive',
-    'X-Accel-Buffering': 'no' // nginx proxy buffering'i kapat
+    'X-Accel-Buffering': 'no'
   });
+
+  // ─── Client kopma algılama ───
+  let clientDisconnected = false;
+  req.on('close', () => { clientDisconnected = true; });
+
+  // ─── Güvenli yazma fonksiyonu (bağlantı kopmuşsa sessizce geç) ───
+  const safeSend = (event, data) => {
+    if (clientDisconnected) return false;
+    try {
+      res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
+      return true;
+    } catch (e) {
+      clientDisconnected = true;
+      return false;
+    }
+  };
+
+  // Keep-alive: 12sn'de bir ping (proxy timeout'larına karşı)
+  const keepAliveTimer = setInterval(() => {
+    if (clientDisconnected) { clearInterval(keepAliveTimer); return; }
+    try { res.write(': ping\n\n'); } catch(e) { clientDisconnected = true; clearInterval(keepAliveTimer); }
+  }, 12000);
+
+  // Timeout wrapper (tek hisse max 20sn)
+  const analyzeWithTimeout = (fn, ms = 20000) => Promise.race([
+    fn(),
+    new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout (20s)')), ms))
+  ]);
 
   const market = req.query.market || 'all';
   const customSymbolsStr = req.query.symbols;
-  
-  const notify = (type, data) => {
-    try { res.write(`event: ${type}\ndata: ${JSON.stringify(data)}\n\n`); } catch(e) {}
-  };
-
-  // Keep-alive: bağlantıyı 30 saniyede bir ayakta tut (proxy timeout'larına karşı)
-  const keepAliveTimer = setInterval(() => {
-    try { res.write(': ping\n\n'); } catch(e) { clearInterval(keepAliveTimer); }
-  }, 15000);
-
-  // Timeout ile güvenli analiz wrapper'ı (tek hisse 25sn'yi aşarsa atla)
-  const analyzeWithTimeout = (analyzeFn, timeoutMs = 25000) => {
-    return Promise.race([
-      analyzeFn(),
-      new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout')), timeoutMs))
-    ]);
-  };
-
   let totalScanned = 0;
+  let totalSuccess = 0;
+  let totalSkipped = 0;
 
   try {
     const { analyzeAsset } = await import('../services/universalScanner.js');
 
-    // DURUM 1: Özel sembol listesi tarama
+    // ─── Sembol listesini hazırla ───
+    let allSymbols = [];
+
     if (customSymbolsStr) {
-      const customSymbols = customSymbolsStr.split(',').map(s => s.trim()).filter(s => s);
-      const CONCURRENCY = 3; // Özel listede daha az concurrent (daha stabil)
-      notify('progress', { current: 0, total: customSymbols.length, text: 'Tarama başlatılıyor...' });
-
-      for (let i = 0; i < customSymbols.length; i += CONCURRENCY) {
-        const chunk = customSymbols.slice(i, i + CONCURRENCY);
-        await Promise.allSettled(chunk.map(async (sym) => {
-          try {
-            let type = 'bist';
-            if (sym.includes('-USD') || sym.includes('-USDT')) type = 'crypto';
-            else if (sym.includes('=X')) type = 'forex';
-            else if (sym.includes('=F')) type = 'commodity';
-
-            const analyzed = await analyzeWithTimeout(() => analyzeAsset(sym, sym, type));
-            totalScanned++;
-            if (analyzed && analyzed.currentPrice > 0) {
-              notify('assetAnalyzed', analyzed);
-            }
-            notify('progress', { current: totalScanned, total: customSymbols.length });
-          } catch (e) {
-            totalScanned++;
-            notify('assetSkipped', { symbol: sym, reason: e.message });
-            notify('progress', { current: totalScanned, total: customSymbols.length });
-          }
-        }));
-        await new Promise(r => setTimeout(r, 200));
-      }
-    } 
-    // DURUM 2: Standart piyasa evreni tarama
-    else {
-      const universes = market === 'all' 
-        ? Object.keys(ASSET_UNIVERSES) 
-        : [market];
-
-      // Önce toplam sayıyı hesapla (progress için)
-      let allSymbols = [];
+      // Özel sembol listesi
+      allSymbols = customSymbolsStr.split(',').map(s => s.trim()).filter(s => s).map(sym => {
+        let type = 'bist';
+        if (sym.includes('-USD') || sym.includes('-USDT')) type = 'crypto';
+        else if (sym.includes('=X')) type = 'forex';
+        else if (sym.includes('=F')) type = 'commodity';
+        return { symbol: sym, name: sym, type };
+      });
+    } else {
+      // Standart piyasa evreni
+      const universes = market === 'all' ? Object.keys(ASSET_UNIVERSES) : [market];
       for (const uniKey of universes) {
         if (!ASSET_UNIVERSES[uniKey]) continue;
         if (uniKey === 'bist') {
           const { default: prisma } = await import('../lib/prisma.js');
           const dbStocks = await prisma.stock.findMany({ select: { ticker: true, name: true } });
-          allSymbols.push(...dbStocks.map(s => ({ symbol: s.ticker, name: s.name, flag: '🇹🇷', type: 'bist' })));
+          allSymbols.push(...dbStocks.map(s => ({ symbol: s.ticker, name: s.name, type: 'bist' })));
         } else {
           allSymbols.push(...(ASSET_UNIVERSES[uniKey].symbols || []).map(s => ({ ...s, type: uniKey })));
         }
       }
+    }
 
-      notify('progress', { current: 0, total: allSymbols.length, text: `${allSymbols.length} varlık taranacak...` });
+    const total = allSymbols.length;
+    safeSend('progress', { current: 0, total, text: `${total} varlık taranacak...` });
 
-      const CONCURRENCY = 4; // 4'lü concurrent - Yahoo rate limitine karşı dengeli
-      for (let i = 0; i < allSymbols.length; i += CONCURRENCY) {
-        const chunk = allSymbols.slice(i, i + CONCURRENCY);
-        await Promise.allSettled(chunk.map(async (item) => {
-          try {
-            const analyzed = await analyzeWithTimeout(() => analyzeAsset(item.symbol, item.name, item.type));
-            totalScanned++;
-            if (analyzed && analyzed.currentPrice > 0) {
-              notify('assetAnalyzed', analyzed);
-            }
-            notify('progress', { current: totalScanned, total: allSymbols.length });
-          } catch (e) {
-            totalScanned++;
-            notify('assetSkipped', { symbol: item.symbol, reason: e.message });
-            notify('progress', { current: totalScanned, total: allSymbols.length });
+    // ─── Ana tarama döngüsü (4'lü chunk, her hisse bağımsız) ───
+    const CONCURRENCY = 4;
+    for (let i = 0; i < allSymbols.length; i += CONCURRENCY) {
+      // Client kopmuşsa döngüyü kes
+      if (clientDisconnected) break;
+
+      const chunk = allSymbols.slice(i, i + CONCURRENCY);
+
+      await Promise.allSettled(chunk.map(async (item) => {
+        if (clientDisconnected) return; // Zaten kapandıysa boşuna çalışma
+
+        totalScanned++;
+        try {
+          const analyzed = await analyzeWithTimeout(() => analyzeAsset(item.symbol, item.name, item.type));
+
+          if (analyzed && analyzed.currentPrice > 0) {
+            safeSend('assetAnalyzed', analyzed);
+            totalSuccess++;
+          } else {
+            totalSkipped++;
+            safeSend('assetSkipped', { symbol: item.symbol, reason: 'Fiyat bilgisi alınamadı' });
           }
-        }));
-        // Rate limit tampon süresi: her 4 hisseden sonra 300ms bekle
-        await new Promise(r => setTimeout(r, 300));
+        } catch (err) {
+          totalSkipped++;
+          safeSend('assetSkipped', { symbol: item.symbol, reason: err.message || 'Bilinmeyen hata' });
+        }
+
+        // Her hisseden sonra ilerleme gönder
+        safeSend('progress', { current: totalScanned, total, text: `${totalScanned}/${total} tarandı` });
+      }));
+
+      // Rate limit koruması: her 4 hisseden sonra 350ms bekle
+      if (!clientDisconnected) {
+        await new Promise(r => setTimeout(r, 350));
       }
     }
-  } catch(e) {
-    console.error('[SSE FATAL]:', e.message);
-    notify('error', { message: e.message });
+  } catch (fatalErr) {
+    console.error('[SSE FATAL]:', fatalErr.message);
+    safeSend('error', { message: fatalErr.message });
   } finally {
     clearInterval(keepAliveTimer);
-    notify('done', { message: 'Tarama tamamlandı!', totalScanned });
-    res.end();
+    safeSend('done', { 
+      message: 'Tarama tamamlandı!', 
+      totalScanned, 
+      totalSuccess, 
+      totalSkipped 
+    });
+    try { res.end(); } catch(e) {}
   }
 });
+
 
 
 // ─── AI Önerileri (Scan sonuçlarına göre) ──────────────────────────────
