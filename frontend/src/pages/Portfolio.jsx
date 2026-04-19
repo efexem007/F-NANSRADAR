@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
-import { PieChart as PieIcon, Plus, Trash2, Download, Zap, X, FileText } from 'lucide-react'
+import { Link } from 'react-router-dom'
+import { PieChart as PieIcon, Plus, Trash2, Download, Zap, X, FileText, Star } from 'lucide-react'
 import { PieChart, Pie, Cell, Tooltip, Legend, ResponsiveContainer } from 'recharts'
 import * as XLSX from 'xlsx'
 import jsPDF from 'jspdf'
@@ -8,6 +9,7 @@ import client from '../api/client'
 import { formatCurrency, formatPercent } from '../utils/formatters'
 import { STOCK_COLORS, getColor } from '../constants/colors'
 import ChartCard from '../components/ChartCard'
+import { useFavorites } from '../hooks/useFavorites'
 
 const Portfolio = () => {
   const [data, setData] = useState({ items: [], summary: {} })
@@ -21,6 +23,7 @@ const Portfolio = () => {
   const [modalError, setModalError] = useState('')
   const [optimizing, setOptimizing] = useState(false)
   const [optimizedWeights, setOptimizedWeights] = useState(null)
+  const { favorites, toggle } = useFavorites()
 
   useEffect(() => { fetchPortfolio() }, [])
 
@@ -193,6 +196,32 @@ const Portfolio = () => {
           </ChartCard>
         </div>
       </div>
+
+      {/* Favorites / Watchlist Strip */}
+      {favorites.length > 0 && (
+        <div className="glass-card p-4">
+          <div className="flex items-center gap-2 mb-3">
+            <Star size={16} className="text-amber-400 fill-amber-400" />
+            <h2 className="text-sm font-bold text-white">Takip Listesi (Satın Alınmamış Gözlemler)</h2>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {favorites.map(t => (
+              <div key={t} className="flex items-center bg-white/5 border border-white/10 rounded-lg overflow-hidden group hover:bg-white/10 transition-all">
+                <Link to={`/stock/${t}`} className="px-3 py-1.5 text-xs font-semibold text-purple-300 hover:text-white transition-colors">
+                  {t}
+                </Link>
+                <button 
+                  onClick={() => toggle(t)} 
+                  className="px-2 py-1.5 border-l border-white/5 text-slate-500 hover:bg-red-500/20 hover:text-red-400 transition-colors"
+                  title="Takipten Çıkar"
+                >
+                  <X size={12} />
+                </button>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Table */}
       <div className="glass-card !p-0 overflow-hidden">

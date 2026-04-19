@@ -4,8 +4,9 @@ import client from '../api/client'
 import { formatCurrency, formatDate } from '../utils/formatters'
 import {
   TrendingUp, RefreshCw, Activity, Search, Zap, ExternalLink,
-  Play, StopCircle, CheckCircle2, AlertTriangle, BarChart3
+  Play, StopCircle, CheckCircle2, AlertTriangle, BarChart3, Star
 } from 'lucide-react'
+import { useFavorites } from '../hooks/useFavorites'
 
 const SIGNAL_STYLES = {
   'GÜÇLÜ AL': 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40',
@@ -27,6 +28,7 @@ const Signals = () => {
   const [filterSignal, setFilterSignal] = useState('all')
   const [sortBy, setSortBy] = useState('score') // 'score' | 'ticker' | 'price' | 'signal'
   const [sortDir, setSortDir] = useState('desc')
+  const { favorites, toggle, isFavorite } = useFavorites()
 
   // Tarama state
   const [scanning, setScanning] = useState(false)
@@ -346,6 +348,7 @@ const Signals = () => {
                   <th className="text-right cursor-pointer hover:text-slate-300" onClick={() => handleSort('signal')}>
                     Sinyal {sortBy === 'signal' && (sortDir === 'asc' ? '↑' : '↓')}
                   </th>
+                  <th className="text-center w-8">⭐</th>
                 </tr>
               </thead>
               <tbody>
@@ -416,6 +419,14 @@ const Signals = () => {
                           <span className={`text-[11px] font-bold px-2 py-1 rounded-md border ${style}`}>
                             {sig.signal}
                           </span>
+                        </td>
+                        <td className="text-center">
+                          <button
+                            onClick={(e) => { e.stopPropagation(); toggle(sig.ticker) }}
+                            className="p-1.5 rounded-lg hover:bg-white/5 transition-colors"
+                          >
+                            <Star size={14} className={isFavorite(sig.ticker) ? "fill-amber-400 text-amber-400" : "text-slate-500"} />
+                          </button>
                         </td>
                       </tr>
                     )
