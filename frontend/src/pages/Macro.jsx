@@ -72,16 +72,18 @@ const Macro = () => {
   // Tüm hisseleri çek
   useEffect(() => {
     client.get('/stock/list?pageSize=500&sortBy=ticker').then(res => {
-      const stocks = Array.isArray(res.data) ? res.data : (res.data?.stocks || res.data?.items || [])
-      setAllStocks(stocks)
+      const payload = res.data;
+      const stocks = Array.isArray(payload) ? payload : (payload?.data || payload?.stocks || payload?.items || []);
+      setAllStocks(stocks);
     }).catch(() => {
       // Fallback: sinyal geçmişindeki ticker'ları kullan
       client.get('/signal/history').then(sigRes => {
-        const tickers = [...new Set((sigRes.data || []).map(s => s.ticker))]
-        setAllStocks(tickers.map(t => ({ ticker: t, name: t })))
-      }).catch(() => {})
-    })
-  }, [])
+        const payload = sigRes.data;
+        const tickers = [...new Set(((Array.isArray(payload) ? payload : payload?.data) || []).map(s => s.ticker))];
+        setAllStocks(tickers.map(t => ({ ticker: t, name: t })));
+      }).catch(() => {});
+    });
+  }, []);
 
   const fetchMacro = async (isSync = false) => {
     try { 
