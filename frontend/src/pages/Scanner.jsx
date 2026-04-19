@@ -355,13 +355,30 @@ export default function Scanner() {
 
   // Tarama geçmişini tamamen sıfırla
   const handleReset = () => {
-    toast.dismiss();
+    // Varsa devam eden taramayı kes
+    if (eventSourceRef.current) {
+      eventSourceRef.current.close();
+      eventSourceRef.current = null;
+    }
+    setScanning(false);
+    toast.dismiss(); // Tüm açık bildirimleri zorla kapat
+
     setScanResults(null);
     setAiPicks(null);
-    setSelectedTickers([]); // Seçimleri de sıfırla
+    setSelectedTickers([]);
     localStorage.removeItem('lastScanResults');
     localStorage.removeItem('lastAiPicks');
-    toast.success('Geçmiş tarama verileri temizlendi.');
+    toast.success('Tarama ve seçimler temizlendi');
+  };
+
+  const cancelScan = () => {
+    if (eventSourceRef.current) {
+      eventSourceRef.current.close();
+      eventSourceRef.current = null;
+    }
+    setScanning(false);
+    toast.dismiss();
+    toast.error('Tarama iptal edildi.', { duration: 3000 });
   };
 
   const toggleSelect = (ticker) => {

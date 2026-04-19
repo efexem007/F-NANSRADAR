@@ -174,6 +174,12 @@ const Signals = () => {
 
   const resetSignals = () => {
     if (window.confirm("Tüm taranan sinyalleri temizlemek istediğinize emin misiniz?")) {
+      // Devam eden tarama varsa durdur
+      if (eventSourceRef.current) {
+        eventSourceRef.current.close();
+        eventSourceRef.current = null;
+      }
+      setScanning(false);
       localStorage.removeItem('finansradar_signals_v2');
       setLiveSignals([]);
     }
