@@ -662,41 +662,52 @@ export default function Scanner() {
             </div>
 
             <div className="flex items-center gap-2">
-              {scanResults && (
-                <button
-                  onClick={handleReset}
-                  disabled={scanning}
-                  className="px-3 py-2 rounded-xl font-bold text-sm transition-all
-                             bg-red-500/10 border border-red-500/20 text-red-400 hover:bg-red-500/20
-                             disabled:opacity-50"
-                  title="Geçmişi Temizle"
-                >
-                  <Trash2 size={16} />
-                </button>
-              )}
-              {selectedTickers.length > 0 && (
+              {/* Temizle butonu — tarama sirasinda da aktif, cunkü cancelScan ile durdurur */}
+              <button
+                onClick={handleReset}
+                className="px-3 py-2 rounded-xl font-bold text-sm transition-all
+                           bg-red-500/10 border border-red-500/20 text-red-400 hover:bg-red-500/20"
+                title="Taramayı Durdur ve Temizle"
+              >
+                <Trash2 size={16} />
+              </button>
+
+              {/* Seçili hisseleri tara — sadece tarama yokken görünür */}
+              {selectedTickers.length > 0 && !scanning && (
                 <button
                   onClick={() => handleScan(selectedTickers)}
-                  disabled={scanning}
                   className="flex items-center gap-2 px-4 py-2 rounded-xl font-bold text-sm transition-all
                              bg-gradient-to-r from-amber-600/40 to-orange-600/40 border border-amber-500/50
-                             text-amber-200 hover:text-white hover:border-amber-400 disabled:opacity-50"
+                             text-amber-200 hover:text-white hover:border-amber-400"
                   title="Sadece seçtiğin hisseleri tara"
                 >
                   <Search size={16} />
-                  {scanning ? 'Taranıyor...' : `Seçiliyi Tara (${selectedTickers.length})`}
+                  Seçiliyi Tara ({selectedTickers.length})
                 </button>
               )}
-              <button
-                onClick={() => handleScan()}
-                disabled={scanning}
-                className="flex items-center gap-2 px-4 py-2 rounded-xl font-bold text-sm transition-all
-                           bg-gradient-to-r from-purple-600/40 to-cyan-600/40 border border-purple-500/50
-                           text-purple-200 hover:text-white hover:border-purple-400 disabled:opacity-50"
-              >
-                {scanning ? <RefreshCw size={16} className="animate-spin" /> : <Zap size={16} />}
-                {scanning ? 'Taranıyor...' : 'Piyasayı Tara'}
-              </button>
+
+              {/* Tarama başlamışsa: İptal Et | Başlamamışsa: Piyasayı Tara */}
+              {scanning ? (
+                <button
+                  onClick={cancelScan}
+                  className="flex items-center gap-2 px-4 py-2 rounded-xl font-bold text-sm transition-all
+                             bg-gradient-to-r from-rose-600/60 to-red-600/60 border border-rose-500/70
+                             text-white hover:from-rose-600 hover:to-red-600 shadow-lg shadow-rose-900/30"
+                >
+                  <RefreshCw size={16} className="animate-spin" />
+                  Taramayı Durdur
+                </button>
+              ) : (
+                <button
+                  onClick={() => handleScan()}
+                  className="flex items-center gap-2 px-4 py-2 rounded-xl font-bold text-sm transition-all
+                             bg-gradient-to-r from-purple-600/40 to-cyan-600/40 border border-purple-500/50
+                             text-purple-200 hover:text-white hover:border-purple-400"
+                >
+                  <Zap size={16} />
+                  Piyasayı Tara
+                </button>
+              )}
             </div>
           </div>
 

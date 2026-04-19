@@ -156,10 +156,14 @@ const Signals = () => {
       eventSourceRef.current = null;
     });
 
-    es.onerror = () => {
-      setScanning(false);
-      es.close();
-      eventSourceRef.current = null;
+    es.onerror = (err) => {
+      console.warn('SSE Error:', err);
+      // Sadece gerçek bir bağlantı kopmasıysa kapat (normal kapanmalarda hazırda bekle)
+      if (es.readyState === EventSource.CLOSED) {
+        setScanning(false);
+        es.close();
+        eventSourceRef.current = null;
+      }
     };
   };
 
