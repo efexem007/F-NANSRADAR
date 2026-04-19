@@ -109,14 +109,19 @@ const Macro = () => {
   // Bilanço (Fundamental) verisi çek
   useEffect(() => {
     if (!selectedStock) return
+    let cancelled = false;
     (async () => {
       try { 
         setFundLoading(true)
-        const res = await client.get(`/stock/${selectedStock}/fundamental`)
-        setFundData(res.data)
+        setFundData(null) // Önceki hissenin verisini temizle
+        const ticker = selectedStock.replace('.IS', '');
+        const res = await client.get(`/stock/${ticker}/fundamental`)
+        if (!cancelled) setFundData(res.data)
       }
-      catch {} finally { setFundLoading(false) }
+      catch (e) { if (!cancelled) setFundData(null) } 
+      finally { if (!cancelled) setFundLoading(false) }
     })()
+    return () => { cancelled = true; }
   }, [selectedStock])
 
   if (loading) return <div className="flex items-center justify-center h-[60vh]"><div className="w-10 h-10 border-4 border-purple-500 border-t-transparent rounded-full animate-spin" /></div>
@@ -238,68 +243,49 @@ const Macro = () => {
           <ChartCard icon="📋" title="Şirket Bilançosu & Fundamental Yorum (Mikro Analiz)">
             <div className="flex items-center gap-3 mb-4">
               <span className="text-sm font-semibold text-slate-400">Şirket Seçin:</span>
-              <div className="relative w-64 z-50">
+              <div className="relative w-72 z-50">
                 <input
                   type="text"
                   placeholder="Hisse Ara (Örn: THYAO)..."
-                  value={stockSearch}
+                  value={isSearchOpen ? stockSearch : selectedStock}
                   onChange={e => { setStockSearch(e.target.value.toUpperCase()); setIsSearchOpen(true); }}
-                  onFocus={() => setIsSearchOpen(true)}
-                  onBlur={() => setTimeout(() => setIsSearchOpen(false), 200)}
-                  onKeyDown={e => {
-                    if (e.key === 'Enter' && stockSearch) {
-                      const q = stockSearch.toLowerCase();
-                      const firstMatch = allStocks.find(s => {
-                        const tick = (s.ticker || '').replace('.IS', '').toLowerCase();
-                        const nm = (s.name || '').toLowerCase();
-                        return tick.includes(q) || nm.includes(q);
-                      });
-                      if (firstMatch) {
-                        setSelectedStock((firstMatch.ticker || '').replace('.IS', ''));
-                        setStockSearch('');
-                        setIsSearchOpen(false);
-                      }
-                    }
-                  }}
-                  className="w-full bg-[#0f0f23] border border-white/10 rounded-xl px-4 py-2 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-purple-500/50 shadow-lg"
+                  onFocus={() => { setStockSearch(''); setIsSearchOpen(true); }}
+                  onBlur={() => setTimeout(() => setIsSearchOpen(false), 250)}
+                  className="w-full bg-[#0f0f23] border border-purple-500/40 rounded-xl px-4 py-2 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-purple-500 shadow-lg font-semibold"
                 />
-                
-                {selectedStock && !isSearchOpen && (
-                  <div className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center gap-1 pointer-events-none">
-                    <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-purple-500/20 text-purple-300 border border-purple-500/30">
-                      {selectedStock}
-                    </span>
-                  </div>
-                )}
 
                 {isSearchOpen && (
-                  <div className="absolute left-0 right-0 top-full mt-2 bg-[#1a1b3b] border border-white/10 rounded-xl shadow-2xl max-h-60 overflow-y-auto overflow-x-hidden z-50 custom-scrollbar">
+                  <div className="absolute left-0 right-0 top-full mt-2 bg-[#1a1b3b] border border-white/10 rounded-xl shadow-2xl max-h-64 overflow-y-auto overflow-x-hidden z-50">
                     {allStocks.length === 0 ? (
                       <div className="p-3 text-xs text-slate-500 text-center">Yükleniyor...</div>
                     ) : (
                       <div className="py-1">
                         {allStocks
                           .filter(s => {
-                            const tick = (s.ticker || '').replace('.IS', '')
+                            const tick = (s.ticker || '').replace('.IS', '').toUpperCase()
                             const nm = (s.name || '').toLowerCase()
                             const q = stockSearch.toLowerCase()
-                            return !q || tick.toLowerCase().includes(q) || nm.includes(q)
+                            return !q || tick.includes(q.toUpperCase()) || nm.includes(q)
                           })
-                          .slice(0, 50) // Performans için ilk 50'yi göster
+                          .slice(0, 60)
                           .map((s, i) => {
                             const tick = (s.ticker || '').replace('.IS', '')
                             return (
                               <div
                                 key={tick + '-' + i}
-                                onClick={() => {
-                                  setSelectedStock(tick);
+                                onMouseDown={(e) => {
+                                  e.preventDefault(); // blur önce çalışmasın
+                                  const normalized = tick.toUpperCase();
+                                  setSelectedStock(normalized);
                                   setStockSearch('');
                                   setIsSearchOpen(false);
                                 }}
-                                className={`px-4 py-2 text-sm cursor-pointer hover:bg-purple-500/20 flex items-center justify-between border-b border-white/5 last:border-0 ${selectedStock === tick ? 'bg-purple-500/10 text-purple-300' : 'text-slate-300'}`}
+                                className={`px-4 py-2.5 text-sm cursor-pointer hover:bg-purple-500/20 flex items-center justify-between border-b border-white/5 last:border-0 transition-colors ${
+                                  selectedStock === tick ? 'bg-purple-500/15 text-purple-300' : 'text-slate-300'
+                                }`}
                               >
                                 <span className="font-bold">{tick}</span>
-                                <span className="text-[10px] text-slate-500 truncate max-w-[120px]">{s.name}</span>
+                                <span className="text-[10px] text-slate-500 truncate max-w-[150px]">{s.name}</span>
                               </div>
                             )
                           })
