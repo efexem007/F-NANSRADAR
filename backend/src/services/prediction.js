@@ -119,8 +119,25 @@ export function predictWeekly(priceData, days = 7) {
   const n = finalPrices.length;
 
   // Günlük tahmin noktaları (percentiller)
-  const dailyPredictions = [];
+  // v2.0: Tek simülasyonda hem finalPrices hem dailyPredictions hesapla
+  // Günlük fiyatları toplamak için matris: [simülasyon][gün]
+  const allPaths = Array.from({ length: nSim }, () => [currentPrice]);
   const today = new Date();
+
+  for (let s = 0; s < nSim; s++) {
+    let price = currentPrice;
+    for (let d = 1; d <= days; d++) {
+      const shock = randn();
+      price = price * Math.exp((adjustedMu - 0.5 * sigmaDaily * sigmaDaily) + sigmaDaily * shock);
+      allPaths[s][d] = price;
+    }
+  }
+
+  // Final fiyatlar
+  const finalPrices = allPaths.map(p => p[p.length - 1]).sort((a, b) => a - b);
+
+  // Günlük tahminler (tüm simülasyonlardan percentiller)
+  const dailyPredictions = [];
   for (let d = 0; d <= days; d++) {
     const date = new Date(today);
     date.setDate(date.getDate() + d);
@@ -136,16 +153,7 @@ export function predictWeekly(priceData, days = 7) {
       });
       continue;
     }
-    // Her gün için simülasyonlardan percentil hesapla
-    const dayPrices = [];
-    for (let s = 0; s < nSim; s++) {
-      let p = currentPrice;
-      for (let dd = 0; dd < d; dd++) {
-        p = p * Math.exp((adjustedMu - 0.5 * sigmaDaily * sigmaDaily) + sigmaDaily * randn());
-      }
-      dayPrices.push(p);
-    }
-    dayPrices.sort((a, b) => a - b);
+    const dayPrices = allPaths.map(p => p[d]).sort((a, b) => a - b);
     const dn = dayPrices.length;
     dailyPredictions.push({
       date: date.toISOString().split('T')[0],
@@ -176,7 +184,7 @@ export function predictWeekly(priceData, days = 7) {
       upper95: parseFloat(finalPrices[Math.floor(n * 0.95)].toFixed(2)),
     },
     probabilityUp: parseFloat(((finalPrices.filter(p => p > currentPrice).length / n) * 100).toFixed(1)),
-    confidence: parseFloat((100 - Math.abs(changePct) * 2).toFixed(1)),
+    confidence: parseFloat(Math.max(0, Math.min(100, 100 - Math.abs(changePct) * 1.5)).toFixed(1)),
     momentum: { rsi: parseFloat(rsi.toFixed(1)), zScore: parseFloat(zScore.toFixed(2)), driftBias: parseFloat(driftBias.toFixed(5)) },
     dailyPredictions,
     method: 'Momentum + Mean-Reversion + Monte Carlo (1000 sim)',

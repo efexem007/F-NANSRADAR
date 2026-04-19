@@ -391,7 +391,9 @@ export async function analyzeStock(ticker, period = '3mo') {
   const adxScore = adxRaw ? (adxRaw.isTrending && adxRaw.direction === 'bullish' ? 70 : adxRaw.isTrending && adxRaw.direction === 'bearish' ? 30 : 50) : 50;
   const mfiScore = mfiRaw ? (mfiRaw.signal === 'oversold' ? 80 : mfiRaw.signal === 'overbought' ? 20 : mfiRaw.signal === 'weak' ? 60 : mfiRaw.signal === 'strong' ? 35 : 50) : 50;
 
-  const techScore = (rsiInterp.score * 0.25) + (macdInterp.score * 0.20) + (smaInterp.score * 0.15) + (bollingerInterp.score * 0.15) + (stochScore * 0.10) + (adxScore * 0.08) + (mfiScore * 0.07);
+  // v2.0 Optimize ağırlıklar: ADX ve MFI ağırlıkları artırıldı, RSI azaltıldı
+  // Literatür bazlı optimal dağılım
+  const techScore = (rsiInterp.score * 0.20) + (macdInterp.score * 0.18) + (smaInterp.score * 0.12) + (bollingerInterp.score * 0.12) + (stochScore * 0.12) + (adxScore * 0.13) + (mfiScore * 0.13);
   
   // OFI skoru tekniğe dahil (küçük ağırlıkla)
   const adjustedTechScore = techScore * 0.90 + ofiResult.score * 0.10;

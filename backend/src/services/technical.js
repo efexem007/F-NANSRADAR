@@ -441,77 +441,145 @@ export const calculateAllIndicators = (data) => {
   const fibonacci = calculateFibonacci(data);
   const supportResistance = calculateSupportResistance(data);
 
-  // ─── Birleşik Sinyal Skoru ───────────────────────────────────────────
+  // ─── Birleşik Sinyal Skoru v2.0 (Sigmoid + Ağırlıklı) ──────────────
   let compositeScore = 50; // Başlangıç: nötr
   let buySignals = 0;
   let sellSignals = 0;
   let totalSignals = 0;
 
-  // RSI sinyali
+  // Sigmoid skorlama: Daha granüler, gradasyonlu puanlama
+  const sigmoid = (x, steepness = 0.1) => 50 + 50 * Math.tanh(x * steepness);
+  const rsiDeviation = rsi !== null ? (50 - rsi) : 0; // Pozitif = alım, Negatif = satım
+
+  // RSI sinyali (ağırlık: 0.18) - Sigmoid skorlama
   if (rsi !== null) {
     totalSignals++;
-    if (rsi < 30) { compositeScore += 8; buySignals++; }
-    else if (rsi < 40) { compositeScore += 3; buySignals++; }
-    else if (rsi > 70) { compositeScore -= 8; sellSignals++; }
-    else if (rsi > 60) { compositeScore -= 3; sellSignals++; }
+    const rsiScore = sigmoid(rsiDeviation / 10, 0.3); // 0-100 arası
+    const rsiDelta = rsiScore - 50; // -50 ile +50 arası
+    compositeScore += rsiDelta * 0.18;
+    if (rsiDelta > 5) buySignals++;
+    else if (rsiDelta < -5) sellSignals++;
   }
 
-  // MACD sinyali
+  // MACD sinyali (ağırlık: 0.16) - Histogram büyüklüğüne duyarlı
   if (macd) {
     totalSignals++;
-    if (macd.hist > 0 && macd.macd > macd.signal) { compositeScore += 7; buySignals++; }
-    else if (macd.hist > 0) { compositeScore += 3; buySignals++; }
-    else if (macd.hist < 0 && macd.macd < macd.signal) { compositeScore -= 7; sellSignals++; }
-    else { compositeScore -= 3; sellSignals++; }
+    const histPower = macd.hist / (Math.abs(macd.macd) + Math.abs(macd.signal) + 0.001); // Normalize
+    const macdScore = macd.hist > 0 && macd.macd > macd.signal
+      ? sigmoid(histPower * 20, 0.25)
+      : macd.hist > 0
+        ? sigmoid(histPower * 10, 0.2)
+        : macd.hist < 0 && macd.macd < macd.signal
+          ? sigmoid(histPower * 20, 0.25) // histPower negatif
+          : sigmoid(histPower * 10, 0.2);
+    const macdDelta = macdScore - 50;
+    compositeScore += macdDelta * 0.16;
+    if (macdDelta > 5) buySignals++;
+    else if (macdDelta < -5) sellSignals++;
   }
 
-  // SMA Golden/Death Cross
+  // SMA Golden/Death Cross (ağırlık: 0.12)
   if (sma20 && sma50) {
     totalSignals++;
-    if (sma20 > sma50 && currentPrice > sma20) { compositeScore += 6; buySignals++; }
-    else if (sma20 > sma50) { compositeScore += 2; buySignals++; }
-    else if (sma20 < sma50 && currentPrice < sma20) { compositeScore -= 6; sellSignals++; }
-    else { compositeScore -= 2; sellSignals++; }
+    const crossStrength = (sma20 - sma50) / sma50 * 100; // Yüzde olarak
+    const smaScore = currentPrice > sma20 && sma20 > sma50
+      ? sigmoid(crossStrength, 0.15)
+      : sma20 > sma50
+        ? sigmoid(crossStrength, 0.1)
+        : currentPrice < sma20 && sma20 < sma50
+          ? sigmoid(crossStrength, 0.15) // negatif
+          : sigmoid(crossStrength, 0.1);
+    const smaDelta = smaScore - 50;
+    compositeScore += smaDelta * 0.12;
+    if (smaDelta > 5) buySignals++;
+    else if (smaDelta < -5) sellSignals++;
   }
 
-  // Bollinger sinyali
+  // Bollinger sinyali (ağırlık: 0.12) - Bant pozisyonuna duyarlı
   if (bollinger) {
     totalSignals++;
-    const pos = (currentPrice - bollinger.lower) / (bollinger.upper - bollinger.lower);
-    if (pos < 0.15) { compositeScore += 6; buySignals++; }
-    else if (pos < 0.3) { compositeScore += 2; buySignals++; }
-    else if (pos > 0.85) { compositeScore -= 6; sellSignals++; }
-    else if (pos > 0.7) { compositeScore -= 2; sellSignals++; }
+    const bandWidth = bollinger.upper - bollinger.lower;
+    const pos = bandWidth > 0 ? (currentPrice - bollinger.lower) / bandWidth : 0.5;
+    // 0 = alt bant, 1 = üst bant, 0.5 = orta
+    const bollScore = pos < 0.1
+      ? 90 // Alt bant altı
+      : pos < 0.25
+        ? 75 + (0.25 - pos) * 100 // Alt bölge
+        : pos > 0.9
+          ? 10 // Üst bant üstü
+          : pos > 0.75
+            ? 25 - (pos - 0.75) * 100 // Üst bölge
+            : 50; // Orta
+    const bollDelta = bollScore - 50;
+    compositeScore += bollDelta * 0.12;
+    if (bollDelta > 5) buySignals++;
+    else if (bollDelta < -5) sellSignals++;
   }
 
-  // Stochastic sinyali
+  // Stochastic sinyali (ağırlık: 0.12) - K/D kesişimi dahil
   if (stochastic) {
     totalSignals++;
-    if (stochastic.signal === 'oversold' || stochastic.signal === 'bullish_cross') { compositeScore += 5; buySignals++; }
-    else if (stochastic.signal === 'overbought' || stochastic.signal === 'bearish_cross') { compositeScore -= 5; sellSignals++; }
+    const stochScore = stochastic.signal === 'oversold'
+      ? 85
+      : stochastic.signal === 'bullish_cross'
+        ? 80
+        : stochastic.signal === 'overbought'
+          ? 15
+          : stochastic.signal === 'bearish_cross'
+            ? 20
+            : 50;
+    const stochDelta = stochScore - 50;
+    compositeScore += stochDelta * 0.12;
+    if (stochDelta > 5) buySignals++;
+    else if (stochDelta < -5) sellSignals++;
   }
 
-  // ADX sinyali
+  // ADX sinyali (ağırlık: 0.18) - Trend gücü ve yönü
   if (adx) {
     totalSignals++;
-    if (adx.isTrending && adx.direction === 'bullish') { compositeScore += 5; buySignals++; }
-    else if (adx.isTrending && adx.direction === 'bearish') { compositeScore -= 5; sellSignals++; }
+    const trendPower = adx.adx / 100; // 0-1 arası
+    const adxScore = adx.isTrending
+      ? (adx.direction === 'bullish' ? 50 + trendPower * 45 : 50 - trendPower * 45)
+      : 50; // Yatay piyasa = nötr
+    const adxDelta = adxScore - 50;
+    compositeScore += adxDelta * 0.18;
+    if (adxDelta > 5) buySignals++;
+    else if (adxDelta < -5) sellSignals++;
   }
 
-  // MFI sinyali
+  // MFI sinyali (ağırlık: 0.12) - Hacim ağırlıklı RSI
   if (mfi) {
     totalSignals++;
-    if (mfi.signal === 'oversold') { compositeScore += 5; buySignals++; }
-    else if (mfi.signal === 'overbought') { compositeScore -= 5; sellSignals++; }
+    const mfiScore = mfi.signal === 'oversold'
+      ? 85
+      : mfi.signal === 'weak'
+        ? 60
+        : mfi.signal === 'overbought'
+          ? 15
+          : mfi.signal === 'strong'
+            ? 40
+            : 50;
+    const mfiDelta = mfiScore - 50;
+    compositeScore += mfiDelta * 0.12;
+    if (mfiDelta > 5) buySignals++;
+    else if (mfiDelta < -5) sellSignals++;
   }
 
-  compositeScore = Math.max(0, Math.min(100, compositeScore));
+  // Fibonacci destek/direnç bonusu
+  if (fibonacci && fibonacci.zone === 'support_zone') {
+    compositeScore += 2; // Küçük bonus
+  } else if (fibonacci && fibonacci.zone === 'resistance_zone') {
+    compositeScore -= 2;
+  }
+
+  compositeScore = Math.max(0, Math.min(100, Math.round(compositeScore)));
 
   // Sinyal uyumu (consensus)
   const consensus = totalSignals > 0
     ? parseFloat(((buySignals / totalSignals) * 100).toFixed(1))
     : 50;
 
+  // analysis.js ile tutarlı sinyal eşikleri
   let compositeSignal;
   if (compositeScore >= 75) compositeSignal = 'GÜÇLÜ AL';
   else if (compositeScore >= 60) compositeSignal = 'AL';
@@ -538,6 +606,7 @@ export const calculateAllIndicators = (data) => {
       sellSignals,
       totalSignals,
       consensus,
+      version: '2.0-sigmoid',
     },
   };
 };

@@ -93,19 +93,27 @@ export async function scanSingleStock(ticker) {
 
     let riskScore = 50;
     if (prices.length > 20) {
-      const returns = prices.slice(-20).map((p, i, arr) => i === 0 ? 0 : (p.close - arr[i-1].close) / arr[i-1].close);
-      const volatility = returns.reduce((a,b) => a + b*b, 0) / Math.sqrt(20);
-      riskScore = Math.max(0, 100 - volatility * 100);
+      const returns = prices.slice(-20).map((p, i, arr) => i === 0 ? 0 : (p.close - arr[i-1].close) / arr[i-1].close).slice(1);
+      if (returns.length > 1) {
+        const mean = returns.reduce((a, b) => a + b, 0) / returns.length;
+        const variance = returns.reduce((a, b) => a + (b - mean) ** 2, 0) / (returns.length - 1);
+        const dailyStd = Math.sqrt(variance);
+        const annualizedVol = dailyStd * Math.sqrt(252);
+        // Normalize: 0 vol -> 100 score, 100% vol -> 0 score
+        riskScore = Math.max(0, Math.min(100, 100 - annualizedVol * 100));
+      }
     }
 
     const finalScore = (techScore * 0.35) + (fundScore * 0.25) + (macroScoreVal * 0.20) + (haberPuan * 0.10) + (riskScore * 0.10);
 
+    // Birleşik sinyal üretimi - analysis.js ile tutarlı
     let finalSignal = 'BEKLE';
-    if (finalScore >= 70) finalSignal = 'GÜÇLÜ AL';
-    else if (finalScore >= 55) finalSignal = 'AL';
-    else if (finalScore >= 40) finalSignal = 'BEKLE';
-    else if (finalScore >= 25) finalSignal = 'SAT';
-    else finalSignal = 'GÜÇLÜ SAT';
+    const var95 = riskScore < 30 ? -4.0 : riskScore < 50 ? -2.5 : -1.5; // Proxy VaR from risk score
+    if (finalScore >= 75 && (var95 === null || var95 > -3.0)) finalSignal = 'GÜÇLÜ AL';
+    else if (finalScore >= 60) finalSignal = 'AL';
+    else if (finalScore >= 45) finalSignal = 'BEKLE';
+    else if (riskScore < 20) finalSignal = 'GÜÇLÜ SAT'; // High risk proxy
+    else finalSignal = 'SAT';
 
     const detailsObj = { 
       techScore: Math.round(techScore), 

@@ -89,7 +89,7 @@ class PredictionService {
       predictions.push({
         date: futureDate.toISOString().split('T')[0],
         predicted: parseFloat(Math.max(0, forecast).toFixed(2)),
-        confidence: Math.max(0, 1 - (i * 0.02)), // Zamanla azalan güven
+        confidence: parseFloat(Math.max(0.05, Math.min(1, 1 - (i * 0.02))).toFixed(3)), // v2.0: Clamp 0.05-1.0
       });
     }
 

@@ -16,18 +16,65 @@
 };
 
 export const technicalScore = (tech) => {
-  let score = 0;
-  if (tech.rsi14 < 30) score += 35;
-  else if (tech.rsi14 > 70) score += 0;
-  else if (tech.rsi14 < 50) score += 20;
-  else score += 10;
-  if (tech.macdHist > 0) score += 25;
-  else score += 5;
-  if (tech.sma20 > tech.sma50) score += 20;
-  else score += 5;
-  if (tech.bollingerLower && tech.currentPrice <= tech.bollingerLower * 1.02) score += 20;
-  else score += 5;
-  return Math.min(100, score);
+  let score = 50; // Nötr başlangıç
+
+  // RSI (ağırlık 0.22) - Sigmoid skorlama
+  if (tech.rsi14 != null) {
+    const rsiDev = (50 - tech.rsi14) / 25; // -2 ile +2 arası
+    score += (50 * Math.tanh(rsiDev)) * 0.22;
+  }
+
+  // MACD (ağırlık 0.20) - Histogram gücüne duyarlı
+  if (tech.macdHist != null) {
+    const macdPower = tech.macdHist > 0 && tech.macdHist > (tech.macdSignal || 0)
+      ? 1.0
+      : tech.macdHist > 0 ? 0.5 : tech.macdHist < 0 && tech.macdHist < (tech.macdSignal || 0) ? -1.0 : -0.5;
+    score += macdPower * 25 * 0.20;
+  }
+
+  // SMA Cross (ağırlık 0.16)
+  if (tech.sma20 != null && tech.sma50 != null) {
+    const crossStrength = (tech.sma20 - tech.sma50) / tech.sma50;
+    const smaPower = tech.currentPrice > tech.sma20 && tech.sma20 > tech.sma50
+      ? 1.0 + crossStrength * 5
+      : tech.sma20 > tech.sma50 ? 0.5 + crossStrength * 3 : tech.currentPrice < tech.sma20 && tech.sma20 < tech.sma50 ? -1.0 : -0.5;
+    score += smaPower * 25 * 0.16;
+  }
+
+  // Bollinger (ağırlık 0.14)
+  if (tech.bollingerLower != null && tech.currentPrice != null) {
+    const bbPos = (tech.bollingerUpper && tech.bollingerLower)
+      ? (tech.currentPrice - tech.bollingerLower) / (tech.bollingerUpper - tech.bollingerLower)
+      : 0.5;
+    const bbPower = bbPos < 0.1 ? 1.0 : bbPos < 0.25 ? 0.6 : bbPos > 0.9 ? -1.0 : bbPos > 0.75 ? -0.6 : 0;
+    score += bbPower * 25 * 0.14;
+  }
+
+  // Stochastic (ağırlık 0.12) - Eklendi
+  if (tech.stochasticSignal) {
+    const stochPower = tech.stochasticSignal === 'oversold' ? 1.0
+      : tech.stochasticSignal === 'bullish_cross' ? 0.8
+      : tech.stochasticSignal === 'overbought' ? -1.0
+      : tech.stochasticSignal === 'bearish_cross' ? -0.8 : 0;
+    score += stochPower * 25 * 0.12;
+  }
+
+  // ADX Trend (ağırlık 0.10) - Eklendi
+  if (tech.adx != null && tech.adxDirection) {
+    const adxPower = tech.adx > 25
+      ? (tech.adxDirection === 'bullish' ? 1.0 : -1.0) * Math.min(tech.adx / 50, 1)
+      : 0;
+    score += adxPower * 25 * 0.10;
+  }
+
+  // MFI (ağırlık 0.06) - Eklendi
+  if (tech.mfiSignal) {
+    const mfiPower = tech.mfiSignal === 'oversold' ? 1.0
+      : tech.mfiSignal === 'overbought' ? -1.0 : 0;
+    score += mfiPower * 25 * 0.06;
+  }
+
+  return Math.max(0, Math.min(100, Math.round(score)));
 };
 
 export const macroScore = (cds, vix) => {
