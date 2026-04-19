@@ -10,7 +10,8 @@ import cache from '../lib/cache.js';
 
 class AILearningService {
   constructor() {
-    this.learningEnabled = process.env.ENABLE_AI_LEARNING === 'true';
+    // Production'da env'den kontrol, development'ta varsayılan aktif
+    this.learningEnabled = process.env.ENABLE_AI_LEARNING !== 'false';
     this.minSamples = 10;
     this.learningRate = 0.1;
   }

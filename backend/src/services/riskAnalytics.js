@@ -142,7 +142,14 @@ export function hillEstimator(returns, k = 20) {
  */
 export function calcRiskReport(priceData) {
   if (!priceData || priceData.length < 30) {
-    return { error: 'Risk analizi için yeterli veri yok (min 30 gün)' };
+    return {
+      garch: { sigma: null, annualSigma: null, persistence: null, halfLife: null, volRegime: 'Bilinmiyor' },
+      var95: null, var99: null, cvar95: null,
+      xi: 0.2, tailRisk: { level: 'Bilinmiyor', score: 50, color: 'gray' },
+      maxDrawdown: 0, sharpe: 0, riskScore: 50,
+      comment: 'Risk analizi için yeterli veri yok (min 30 gün)',
+      error: 'Risk analizi için yeterli veri yok (min 30 gün)'
+    };
   }
 
   const returns = [];

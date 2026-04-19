@@ -405,14 +405,17 @@ export async function analyzeStock(ticker, period = '3mo') {
   // SignalScore = w_tech*Tech + w_fund*Fund + w_macro*Macro + w_sent*Sent
   const sentScore = volumeInterp.score; // Hacim ≈ Sentiment proxy
   
-  const rawScore = (adjustedTechScore * wTech) + 
-                   (fundScore * wFund) + 
-                   (macroScoreVal * wMacro) + 
-                   (sentScore * wSent);
+  // NaN koruması: Her alt skor NaN/undefined ise 50 (nötr) kullan
+  const safeScore = (v) => (typeof v === 'number' && !isNaN(v)) ? v : 50;
+  
+  const rawScore = (safeScore(adjustedTechScore) * wTech) + 
+                   (safeScore(fundScore) * wFund) + 
+                   (safeScore(macroScoreVal) * wMacro) + 
+                   (safeScore(sentScore) * wSent);
   
   // Risk ayarı: Yüksek tail risk final skoru düşürür
-  const riskAdjustment = riskReport.xi > 0.3 ? -5 : riskReport.xi < 0.15 ? +3 : 0;
-  const finalScore = Math.max(0, Math.min(100, Math.round(rawScore + riskAdjustment)));
+  const riskAdjustment = (riskReport.xi > 0.3) ? -5 : (riskReport.xi < 0.15) ? +3 : 0;
+  const finalScore = Math.max(0, Math.min(100, Math.round(safeScore(rawScore) + riskAdjustment)));
 
   // ─── KADEME 5: G-Learning Soft Policy ────────────────────────────────────
   const regimeKeyMap = { 0: 'calm', 1: 'crisis', 2: 'highVol' };
