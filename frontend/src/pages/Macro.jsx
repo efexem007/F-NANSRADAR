@@ -67,6 +67,7 @@ const Macro = () => {
   const [fundLoading, setFundLoading] = useState(false)
   const [allStocks, setAllStocks] = useState([])
   const [stockSearch, setStockSearch] = useState('')
+  const [isSearchOpen, setIsSearchOpen] = useState(false)
 
   // Tüm hisseleri çek
   useEffect(() => {
@@ -235,43 +236,61 @@ const Macro = () => {
           <ChartCard icon="📋" title="Şirket Bilançosu & Fundamental Yorum (Mikro Analiz)">
             <div className="flex items-center gap-3 mb-4">
               <span className="text-sm font-semibold text-slate-400">Şirket Seçin:</span>
-              <div className="flex items-center gap-2">
+              <div className="relative w-64 z-50">
                 <input
                   type="text"
-                  placeholder="Ara... (THYAO, AKBNK)"
+                  placeholder="Hisse Ara (Örn: THYAO)..."
                   value={stockSearch}
-                  onChange={e => setStockSearch(e.target.value)}
-                  className="bg-[#0f0f23] border border-white/10 rounded-xl px-3 py-2 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-purple-500/50 w-36"
+                  onChange={e => { setStockSearch(e.target.value.toUpperCase()); setIsSearchOpen(true); }}
+                  onFocus={() => setIsSearchOpen(true)}
+                  onBlur={() => setTimeout(() => setIsSearchOpen(false), 200)}
+                  className="w-full bg-[#0f0f23] border border-white/10 rounded-xl px-4 py-2 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-purple-500/50 shadow-lg"
                 />
-                <select value={selectedStock} onChange={e => { setSelectedStock(e.target.value); setStockSearch(''); }} className="bg-[#0f0f23] border border-white/10 rounded-xl px-4 py-2 text-sm text-white focus:outline-none focus:border-purple-500/50 shadow-lg cursor-pointer max-w-[240px]">
-                  {/* Sabit öneriler */}
-                  <optgroup label="-- Hızlı Seçim --" className="bg-[#0f0f23] text-slate-400">
-                    {['THYAO', 'AKBNK', 'TUPRS', 'ASELS', 'YEOTK', 'AAGYO', 'ATAGYO'].map(t => (
-                      <option key={t} value={t} className="bg-[#0f0f23] text-white">{t}</option>
-                    ))}
-                  </optgroup>
-                  {/* Dinamik - DB'den */}
-                  {allStocks.length > 0 && (
-                    <optgroup label="-- Tüm Hisseler --" className="bg-[#0f0f23] text-slate-400">
-                      {allStocks
-                        .filter(s => {
-                          const tick = (s.ticker || '').replace('.IS', '')
-                          const nm = (s.name || '').toLowerCase()
-                          const q = stockSearch.toLowerCase()
-                          return !q || tick.toLowerCase().includes(q) || nm.includes(q)
-                        })
-                        .map(s => {
-                          const tick = (s.ticker || '').replace('.IS', '')
-                          return (
-                            <option key={tick} value={tick} className="bg-[#0f0f23] text-white">
-                              {tick} {s.name ? `(${s.name.slice(0, 20)})` : ''}
-                            </option>
-                          )
-                        })
-                      }
-                    </optgroup>
-                  )}
-                </select>
+                
+                {selectedStock && !isSearchOpen && (
+                  <div className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center gap-1 pointer-events-none">
+                    <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-purple-500/20 text-purple-300 border border-purple-500/30">
+                      {selectedStock}
+                    </span>
+                  </div>
+                )}
+
+                {isSearchOpen && (
+                  <div className="absolute left-0 right-0 top-full mt-2 bg-[#1a1b3b] border border-white/10 rounded-xl shadow-2xl max-h-60 overflow-y-auto overflow-x-hidden z-50 custom-scrollbar">
+                    {allStocks.length === 0 ? (
+                      <div className="p-3 text-xs text-slate-500 text-center">Yükleniyor...</div>
+                    ) : (
+                      <div className="py-1">
+                        {allStocks
+                          .filter(s => {
+                            const tick = (s.ticker || '').replace('.IS', '')
+                            const nm = (s.name || '').toLowerCase()
+                            const q = stockSearch.toLowerCase()
+                            return !q || tick.toLowerCase().includes(q) || nm.includes(q)
+                          })
+                          .slice(0, 50) // Performans için ilk 50'yi göster
+                          .map((s, i) => {
+                            const tick = (s.ticker || '').replace('.IS', '')
+                            return (
+                              <div
+                                key={tick + '-' + i}
+                                onClick={() => {
+                                  setSelectedStock(tick);
+                                  setStockSearch('');
+                                  setIsSearchOpen(false);
+                                }}
+                                className={`px-4 py-2 text-sm cursor-pointer hover:bg-purple-500/20 flex items-center justify-between border-b border-white/5 last:border-0 ${selectedStock === tick ? 'bg-purple-500/10 text-purple-300' : 'text-slate-300'}`}
+                              >
+                                <span className="font-bold">{tick}</span>
+                                <span className="text-[10px] text-slate-500 truncate max-w-[120px]">{s.name}</span>
+                              </div>
+                            )
+                          })
+                        }
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
             </div>
             
