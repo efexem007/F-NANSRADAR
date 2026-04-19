@@ -210,12 +210,120 @@ router.get('/:ticker/price', asyncHandler(async (req, res) => {
 
 router.get('/:ticker/fundamental', asyncHandler(async (req, res) => {
   const { ticker } = req.params;
+  
+  // 1. DB'de kayıtlı veri var mı kontrol et
   const stock = await prisma.stock.findUnique({
     where: { ticker },
     include: { fundamental: { orderBy: { period: 'desc' }, take: 1 }, ratios: true }
   });
-  res.json(stock);
+  
+  // 2. DB'de fundamental veri varsa ve yeni ise direkt döndür
+  const dbFund = stock?.fundamental?.[0];
+  const isDBFresh = dbFund && (Date.now() - new Date(dbFund.createdAt || Date.now()).getTime() < 24 * 60 * 60 * 1000);
+  
+  if (isDBFresh) {
+    return res.json(stock);
+  }
+  
+  // 3. DB'de veri yok veya eski → Yahoo'dan çek
+  const { fetchStockFundamentals } = await import('../services/yahooFinance.js');
+  const liveData = await fetchStockFundamentals(ticker).catch(() => null);
+  
+  if (!liveData) {
+    return res.json(stock || { ticker, fundamental: [], ratios: null });
+  }
+  
+  // 4. Canlı veriyi DB'ye kaydet (Stock yoksa oluştur)
+  try {
+    await prisma.stock.upsert({
+      where: { ticker },
+      create: { ticker, name: liveData.profile?.name || ticker, sector: liveData.profile?.sector, industry: liveData.profile?.industry },
+      update: { name: liveData.profile?.name || undefined }
+    });
+    
+    const fund = liveData.fundamental;
+    if (fund && (fund.netSales || fund.ebitda)) {
+      await prisma.fundamentalData.create({
+        data: {
+          stockTicker: ticker,
+          period: fund.period || new Date().getFullYear().toString(),
+          revenue: fund.netSales || null,
+          netSales: fund.netSales || null,
+          grossProfit: fund.grossProfit || null,
+          ebitda: fund.ebitda || null,
+          netProfit: fund.netProfit || null,
+          totalAssets: fund.totalAssets || null,
+          equity: fund.equity || null,
+          totalDebt: fund.totalDebt || null,
+          currentAssets: fund.currentAssets || null,
+          currentLiabilities: fund.currentLiabilities || null,
+          freeCashFlow: fund.freeCashFlow || null,
+          operatingCashFlow: fund.operatingCashFlow || null,
+        }
+      }).catch(() => {});
+    }
+    
+    const r = liveData.ratios;
+    if (r) {
+      await prisma.stockRatio.upsert({
+        where: { stockTicker: ticker },
+        create: {
+          stockTicker: ticker,
+          fk: r.fk || null,
+          pddd: r.pddd || null,
+          netMargin: r.netMargin || null,
+          grossMargin: r.grossMargin || null,
+          currentRatio: r.currentRatio || null,
+          leverageRatio: r.leverage || null,
+          ebitdaMargin: r.ebitdaMargin || null,
+          roe: r.roe || null,
+          roa: r.roa || null,
+          beta: r.beta || null,
+          evToEbitda: r.evToEbitda || null,
+          dividendYield: r.dividendYield || null,
+        },
+        update: {
+          fk: r.fk || null,
+          pddd: r.pddd || null,
+          netMargin: r.netMargin || null,
+          grossMargin: r.grossMargin || null,
+          currentRatio: r.currentRatio || null,
+          leverageRatio: r.leverage || null,
+          ebitdaMargin: r.ebitdaMargin || null,
+          roe: r.roe || null,
+          roa: r.roa || null,
+          beta: r.beta || null,
+          evToEbitda: r.evToEbitda || null,
+          dividendYield: r.dividendYield || null,
+        }
+      }).catch(() => {});
+    }
+  } catch(saveErr) {
+    console.warn('Fundamental kayıt hatası:', saveErr.message);
+  }
+  
+  // 5. Frontend uyumlu format döndür
+  res.json({
+    ticker,
+    name: liveData.profile?.name || ticker,
+    sector: liveData.profile?.sector,
+    fundamental: [{
+      period: liveData.fundamental?.period || new Date().getFullYear().toString(),
+      netSales: liveData.fundamental?.netSales,
+      grossProfit: liveData.fundamental?.grossProfit,
+      ebitda: liveData.fundamental?.ebitda,
+      netProfit: liveData.fundamental?.netProfit,
+      totalAssets: liveData.fundamental?.totalAssets,
+      equity: liveData.fundamental?.equity,
+      totalDebt: liveData.fundamental?.totalDebt,
+      currentAssets: liveData.fundamental?.currentAssets,
+      freeCashFlow: liveData.fundamental?.freeCashFlow,
+    }],
+    ratios: liveData.ratios,
+    profile: liveData.profile,
+  });
 }));
+
 
 // Tam indikatör analizi - sistemde olmayan hisseler de dahil
 router.get('/:ticker/analyze', asyncHandler(async (req, res) => {

@@ -66,12 +66,20 @@ const Macro = () => {
   const [fundData, setFundData] = useState(null)
   const [fundLoading, setFundLoading] = useState(false)
   const [allStocks, setAllStocks] = useState([])
+  const [stockSearch, setStockSearch] = useState('')
 
   // Tüm hisseleri çek
   useEffect(() => {
-    client.get('/stock/list?pageSize=1000').then(res => {
-      setAllStocks(res.data.items || [])
-    }).catch(() => {})
+    client.get('/stock/list?pageSize=500&sortBy=ticker').then(res => {
+      const stocks = Array.isArray(res.data) ? res.data : (res.data?.stocks || res.data?.items || [])
+      setAllStocks(stocks)
+    }).catch(() => {
+      // Fallback: sinyal geçmişindeki ticker'ları kullan
+      client.get('/signal/history').then(sigRes => {
+        const tickers = [...new Set((sigRes.data || []).map(s => s.ticker))]
+        setAllStocks(tickers.map(t => ({ ticker: t, name: t })))
+      }).catch(() => {})
+    })
   }, [])
 
   const fetchMacro = async (isSync = false) => {
@@ -227,20 +235,44 @@ const Macro = () => {
           <ChartCard icon="📋" title="Şirket Bilançosu & Fundamental Yorum (Mikro Analiz)">
             <div className="flex items-center gap-3 mb-4">
               <span className="text-sm font-semibold text-slate-400">Şirket Seçin:</span>
-              <select value={selectedStock} onChange={e => setSelectedStock(e.target.value)} className="bg-[#0f0f23] border border-white/10 rounded-xl px-4 py-2 text-sm text-white focus:outline-none focus:border-purple-500/50 shadow-lg appearance-none cursor-pointer max-w-[200px]">
-                {allStocks.length > 0 ? (
-                  allStocks.map(s => (
-                    <option key={s.ticker} value={s.ticker.replace('.IS', '')} className="bg-[#0f0f23] text-white py-2">
-                      {s.ticker.replace('.IS', '')} ({s.name})
-                    </option>
-                  ))
-                ) : (
-                  <>
-                    <option value="THYAO" className="bg-[#0f0f23] text-white py-2">THYAO (Türk Hava Yolları)</option>
-                    <option value="AKBNK" className="bg-[#0f0f23] text-white py-2">AKBNK (Akbank)</option>
-                  </>
-                )}
-              </select>
+              <div className="flex items-center gap-2">
+                <input
+                  type="text"
+                  placeholder="Ara... (THYAO, AKBNK)"
+                  value={stockSearch}
+                  onChange={e => setStockSearch(e.target.value)}
+                  className="bg-[#0f0f23] border border-white/10 rounded-xl px-3 py-2 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-purple-500/50 w-36"
+                />
+                <select value={selectedStock} onChange={e => { setSelectedStock(e.target.value); setStockSearch(''); }} className="bg-[#0f0f23] border border-white/10 rounded-xl px-4 py-2 text-sm text-white focus:outline-none focus:border-purple-500/50 shadow-lg cursor-pointer max-w-[240px]">
+                  {/* Sabit öneriler */}
+                  <optgroup label="-- Hızlı Seçim --" className="bg-[#0f0f23] text-slate-400">
+                    {['THYAO', 'AKBNK', 'TUPRS', 'ASELS', 'YEOTK', 'AAGYO', 'ATAGYO'].map(t => (
+                      <option key={t} value={t} className="bg-[#0f0f23] text-white">{t}</option>
+                    ))}
+                  </optgroup>
+                  {/* Dinamik - DB'den */}
+                  {allStocks.length > 0 && (
+                    <optgroup label="-- Tüm Hisseler --" className="bg-[#0f0f23] text-slate-400">
+                      {allStocks
+                        .filter(s => {
+                          const tick = (s.ticker || '').replace('.IS', '')
+                          const nm = (s.name || '').toLowerCase()
+                          const q = stockSearch.toLowerCase()
+                          return !q || tick.toLowerCase().includes(q) || nm.includes(q)
+                        })
+                        .map(s => {
+                          const tick = (s.ticker || '').replace('.IS', '')
+                          return (
+                            <option key={tick} value={tick} className="bg-[#0f0f23] text-white">
+                              {tick} {s.name ? `(${s.name.slice(0, 20)})` : ''}
+                            </option>
+                          )
+                        })
+                      }
+                    </optgroup>
+                  )}
+                </select>
+              </div>
             </div>
             
             {fundLoading ? (

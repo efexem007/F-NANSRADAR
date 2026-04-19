@@ -95,7 +95,9 @@ export async function analyzeAsset(symbol, name, assetType) {
       currentPrice = result.currentPrice;
     } else {
       // Forex, crypto, commodity, index — yahoo-finance2 historical
-      const yahoo = (await import('yahoo-finance2')).default;
+      const YahooModule = await import('yahoo-finance2');
+      const YahooFinance = YahooModule.default || YahooModule;
+      const yahoo = typeof YahooFinance === 'function' ? new YahooFinance({ suppressNotices: ['yahooSurvey'] }) : YahooFinance;
       
       // historical API daha güvenilir
       const period1 = new Date(Date.now() - 90*24*60*60*1000);

@@ -149,11 +149,14 @@ export async function scanAllStocks(tickerList = null) {
   else stocks = await prisma.stock.findMany();
   
   const results = [];
-  for (const stock of stocks) {
-    const result = await scanSingleStock(stock.ticker);
-    results.push(result);
-    // 1 saniye bekle
-    await new Promise(resolve => setTimeout(resolve, 1000));
+  const CONCURRENCY = 5;
+  for (let i = 0; i < stocks.length; i += CONCURRENCY) {
+    const chunk = stocks.slice(i, i + CONCURRENCY);
+    const chunkPromises = chunk.map(stock => scanSingleStock(stock.ticker));
+    const chunkResults = await Promise.all(chunkPromises);
+    results.push(...chunkResults);
+    // 1.5 saniye bekle
+    await new Promise(resolve => setTimeout(resolve, 1500));
   }
   return results;
 }

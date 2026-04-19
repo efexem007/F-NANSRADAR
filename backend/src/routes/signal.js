@@ -75,12 +75,13 @@ router.get('/scan-all', async (req, res) => {
     'X-Accel-Buffering': 'no',
   });
 
-  // Tüm BIST hisselerini topla
-  const allTickers = [
-    ...(bistMaster.bist30 || []),
-    ...(bistMaster.bist100Additions || []),
-  ];
-  const uniqueTickers = [...new Set(allTickers)];
+  // Tüm BIST hisselerini veritabanından çek (500+ Hisse)
+  const stocks = await prisma.stock.findMany({
+    select: { ticker: true }
+  });
+  
+  // Ticker'ları işle (sonunda .IS olan/olmayan)
+  const uniqueTickers = [...new Set(stocks.map(s => s.ticker.replace('.IS', '')))];
   const total = uniqueTickers.length;
 
   // Frontend'e toplam sayıyı bildir

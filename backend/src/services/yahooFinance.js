@@ -1,9 +1,9 @@
 
 import YahooFinance from 'yahoo-finance2';
-const yahooFinance = new YahooFinance();
+const yahooFinance = new YahooFinance({ suppressNotices: ['yahooSurvey'] });
 
 /**
- * Mevcut fiyatı hızlıca çekmek için (Geriye dönük uyumluluk için eklendi)
+ * Mevcut fiyatı hızlıca çekmek için (Geriye dönük uyumluluk)
  */
 export const fetchCurrentPrice = async (ticker) => {
   try {
@@ -15,7 +15,7 @@ export const fetchCurrentPrice = async (ticker) => {
 };
 
 /**
- * Temel verileri çekmek için (Geriye dönük uyumluluk için eklendi)
+ * Temel verileri çekmek için (Geriye dönük uyumluluk)
  */
 export const fetchFundamentals = async (ticker) => {
   return await fetchStockFundamentals(ticker);
@@ -51,13 +51,26 @@ export const fetchStockPrices = async (ticker, period = '3mo', interval = '1d') 
   }
 };
 
+/**
+ * Temel finansal verileri çek - financialData + defaultKeyStatistics + price kullanır
+ * Not: fundamentalsTimeSeries BIST için çalışmıyor (Kasım 2024'ten beri)
+ * financialData TTM (Trailing Twelve Months) canlı verisi sağlıyor.
+ */
 export const fetchStockFundamentals = async (ticker) => {
   try {
     let query = ticker.toUpperCase();
     if (!query.includes('.') && !query.includes('-')) query = `${query}.IS`;
 
     const summary = await yahooFinance.quoteSummary(query, { 
-      modules: ['assetProfile', 'financialData', 'defaultKeyStatistics', 'incomeStatementHistory', 'balanceSheetHistory'] 
+      modules: [
+        'assetProfile', 
+        'financialData', 
+        'defaultKeyStatistics',
+        'summaryDetail',
+        'price',
+        'calendarEvents',
+        'earningsTrend',
+      ] 
     }).catch(() => null);
 
     if (!summary) return null;
@@ -65,35 +78,134 @@ export const fetchStockFundamentals = async (ticker) => {
     const profile = summary.assetProfile || {};
     const fd = summary.financialData || {};
     const stats = summary.defaultKeyStatistics || {};
-    const income = summary.incomeStatementHistory?.incomeStatementHistory?.[0] || {};
-    const balance = summary.balanceSheetHistory?.balanceSheetHistory?.[0] || {};
+    const detail = summary.summaryDetail || {};
+    const priceInfo = summary.price || {};
+
+    // --- Gelir Tablosu (TTM - Son 12 Ay) ---
+    // financialData içinde doğrudan değer olarak geliyor (raw özelliğinde değil!)
+    const revenue = fd.totalRevenue || null;
+    const grossProfit = fd.grossProfits || null;
+    const ebitda = fd.ebitda || null;
+    const operatingCashFlow = fd.operatingCashflow || null;
+    const freeCashFlow = fd.freeCashflow || null;
+    const netIncomeToCommon = stats.netIncomeToCommon || stats.netIncomeAllocatedToCommonShareholders || null;
+
+    // --- Borç & Likidite ---
+    const totalDebt = fd.totalDebt || null;
+    const totalCash = fd.totalCash || null;
+    const currentRatio = fd.currentRatio || null;
+    const quickRatio = fd.quickRatio || null;
+
+    // --- Hisse Başına ---
+    const revenuePerShare = fd.revenuePerShare || null;
+    const eps = stats.trailingEps || null;
+    const bookValue = stats.bookValue || null;
+    const shareOutstanding = stats.sharesOutstanding || priceInfo.sharesOutstanding || null;
+
+    // --- Piyasa Verileri ---
+    const marketCap = priceInfo.marketCap || detail.marketCap || null;
+    const enterpriseValue = stats.enterpriseValue || null;
+
+    // --- Büyüme ---
+    const earningsGrowth = fd.earningsGrowth ? fd.earningsGrowth * 100 : null;
+    const revenueGrowth = fd.revenueGrowth ? fd.revenueGrowth * 100 : null;
+
+    // --- Oran Hesaplamaları ---
+    const grossMargin = fd.grossMargins ? fd.grossMargins * 100 : 
+                        (grossProfit && revenue ? (grossProfit / revenue) * 100 : null);
+    const ebitdaMargin = fd.ebitdaMargins ? fd.ebitdaMargins * 100 : 
+                         (ebitda && revenue ? (ebitda / revenue) * 100 : null);
+    const netMargin = fd.profitMargins ? fd.profitMargins * 100 :
+                      (netIncomeToCommon && revenue ? (netIncomeToCommon / revenue) * 100 : null);
+    const operatingMargin = fd.operatingMargins ? fd.operatingMargins * 100 : null;
+    
+    // Çarpanlar
+    const fk = fd.trailingPE || stats.forwardPE || null;
+    const pddd = stats.priceToBook || null;
+    const evToEbitda = stats.enterpriseToEbitda || null;
+    const evToRevenue = stats.enterpriseToRevenue || null;
+    
+    // Kaldıraç
+    const leverage = fd.debtToEquity ? fd.debtToEquity / 100 : null;
+    
+    // NFB/FAVÖK
+    let nfbToFavok = null;
+    if (ebitda && totalDebt && totalCash) {
+      nfbToFavok = (totalDebt - totalCash) / ebitda;
+    }
+    
+    // ROE / ROA
+    const roe = fd.returnOnEquity ? fd.returnOnEquity * 100 : null;
+    const roa = fd.returnOnAssets ? fd.returnOnAssets * 100 : null;
+
+    // Toplam Özkaynak (Piyasa değerinden türet eğer direkt yoksa)
+    let totalEquity = null;
+    if (bookValue && shareOutstanding) {
+      totalEquity = bookValue * shareOutstanding;
+    }
 
     return {
       profile: {
         sector: profile.sector || 'Diğer',
         industry: profile.industry || 'Genel',
         description: profile.longBusinessSummary,
-        name: summary.price?.longName || ticker
+        name: priceInfo.longName || priceInfo.shortName || ticker,
+        employees: profile.fullTimeEmployees || null,
+        website: profile.website || null,
+        country: profile.country || 'Türkiye',
+        currency: priceInfo.currency || 'TRY',
+        exchange: priceInfo.exchangeName || 'BIST',
       },
       ratios: {
-        currentRatio: fd.currentRatio || (balance.totalCurrentAssets / balance.totalCurrentLiabilities) || null,
-        fk: fd.trailingPE || stats.forwardPE || null,
-        pddd: stats.priceToBook || (fd.marketCap / fd.totalEquity) || null,
-        netMargin: fd.profitMargins ? fd.profitMargins * 100 : (income.netIncome / fd.totalRevenue * 100),
-        leverage: fd.debtToEquity ? fd.debtToEquity / 100 : (fd.totalDebt / fd.totalEquity),
-        nfbToEbitda: fd.ebitda > 0 ? ((fd.totalDebt - fd.totalCash) / fd.ebitda) : null,
-        grossMargin: fd.grossMargins ? fd.grossMargins * 100 : (income.grossProfit / fd.totalRevenue * 100),
-        acidTest: fd.quickRatio || ((balance.totalCurrentAssets - balance.inventory) / balance.totalCurrentLiabilities) || null
+        // Değerleme
+        fk,
+        pddd,
+        evToEbitda,
+        evToRevenue,
+        beta: stats.beta || priceInfo.beta || null,
+        // Karlılık
+        grossMargin,
+        ebitdaMargin,
+        netMargin,
+        operatingMargin,
+        roe,
+        roa,
+        // Likidite
+        currentRatio,
+        quickRatio,
+        // Borçluluk  
+        leverage,
+        nfbToEbitda: nfbToFavok,
+        // Büyüme
+        earningsGrowth,
+        revenueGrowth,
+        // Diğer
+        dividendYield: detail.dividendYield ? detail.dividendYield * 100 : null,
+        payoutRatio: detail.payoutRatio ? detail.payoutRatio * 100 : null,
+        eps,
+        bookValue,
+        revenuePerShare,
+        marketCap,
       },
       fundamental: {
-        period: balance.endDate ? new Date(balance.endDate).getFullYear().toString() : new Date().getFullYear().toString(),
-        totalAssets: fd.totalAssets || balance.totalAssets,
-        equity: fd.totalEquity || balance.totalStockholderEquity,
-        currentAssets: balance.totalCurrentAssets || fd.totalCash,
-        currentLiabilities: balance.totalCurrentLiabilities,
-        netSales: fd.totalRevenue || income.totalRevenue,
-        ebitda: fd.ebitda,
-        netProfit: fd.netIncomeToCommon || income.netIncome
+        period: 'TTM (Son 12 Ay)',
+        // Gelir Tablosu
+        netSales: revenue,
+        grossProfit,
+        ebitda,
+        netProfit: netIncomeToCommon,
+        operatingCashFlow,
+        freeCashFlow,
+        // Bilanço (kısmi)
+        totalDebt,
+        cash: totalCash,
+        equity: totalEquity,
+        // Piyasa
+        marketCap,
+        enterpriseValue,
+        shareOutstanding,
+        eps,
+        bookValue,
       }
     };
   } catch (error) {

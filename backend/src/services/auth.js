@@ -2,7 +2,7 @@ import bcrypt from 'bcrypt';
 import jwt from 'jsonwebtoken';
 import prisma from '../lib/prisma.js';
 
-const JWT_SECRET = process.env.JWT_SECRET || 'gizli-anahtar';
+const JWT_SECRET = process.env.JWT_SECRET || 'f1n4nsR4d4r!v5.2_S3cur3Auth:K3y-9a8b7c6d5e4f3g2h1xYz88vL';
 
 export const hashPassword = async (password) => bcrypt.hash(password, 10);
 export const comparePassword = async (password, hash) => bcrypt.compare(password, hash);

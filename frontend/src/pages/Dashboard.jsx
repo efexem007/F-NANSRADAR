@@ -37,10 +37,11 @@ const Dashboard = () => {
 
   // Makro Seleksiyonları
   const [macroCountry, setMacroCountry] = useState('TR')
-  const [macroCompany, setMacroCompany] = useState('TÜMÜ')
-  const [allTickersList, setAllTickersList] = useState([])
-  const [compareA, setCompareA] = useState('AKBNK')
-  const [compareB, setCompareB] = useState('THYAO')
+  const [macroCompany, setMacroCompany] = useState('THYAO')
+  const [macroCompany2, setMacroCompany2] = useState('AKBNK')
+  const [allStocksForCompare, setAllStocksForCompare] = useState([])
+  const [compareSearch1, setCompareSearch1] = useState('')
+  const [compareSearch2, setCompareSearch2] = useState('')
 
   const { toggle, isFavorite } = useFavorites()
 
@@ -59,24 +60,20 @@ const Dashboard = () => {
   useEffect(() => {
     const fetchAll = async () => {
       try {
-        const [portRes, macroRes, sigRes, listRes] = await Promise.all([
+        const [portRes, macroRes, sigRes] = await Promise.all([
           client.get('/portfolio'),
           client.get('/macro'),
           client.get('/signal/history'),
-          client.get('/stock/list?pageSize=1000')
         ])
         setPortfolio(portRes.data)
         setMacros(macroRes.data)
         setSignals(sigRes.data)
-        const allList = listRes.data.items || []
-        setAllTickersList(allList)
 
         const portItems = portRes.data.items || []
-        const portTickers = portItems.map(i => i.ticker.replace('.IS', ''))
-        const activeTickers = Array.from(new Set([compareA, compareB, ...portTickers])).slice(0, 8)
-        
+        const tickers = portItems.map(i => i.ticker)
+        const allTickers = tickers.length > 0 ? tickers : ['THYAO', 'AKBNK', 'TUPRS', 'ASELS']
         const priceData = {}
-        for (const ticker of activeTickers) {
+        for (const ticker of allTickers) {
           try {
             const res = await client.get(`/stock/${ticker}/price?period=3mo`)
             priceData[ticker] = res.data.priceData || []
@@ -87,7 +84,15 @@ const Dashboard = () => {
       finally { setLoading(false) }
     }
     fetchAll()
-  }, [compareA, compareB])
+  }, [])
+
+  // Karşılaştırma için tüm hisseleri yükle
+  useEffect(() => {
+    client.get('/stock/list?pageSize=500&sortBy=ticker').then(res => {
+      const stocks = Array.isArray(res.data) ? res.data : (res.data?.stocks || res.data?.items || [])
+      setAllStocksForCompare(stocks)
+    }).catch(() => {})
+  }, [])
 
   const { summary } = portfolio
   const tickers = Object.keys(prices).filter(t => prices[t].length > 0)
@@ -166,8 +171,8 @@ const Dashboard = () => {
     setTimeout(() => { setActiveStock(ticker); setTransitioning(false) }, 150)
   }
 
-  const cds = macros.find(m => m.type === 'CDS')
-  const vix = macros.find(m => m.type === 'VIX')
+  const cds = Array.isArray(macros) ? macros.find(m => m.type === 'CDS') : macros?.cds || (macros?.target ? Object.values(macros).find(m => m?.type === 'CDS') : null)
+  const vix = Array.isArray(macros) ? macros.find(m => m.type === 'VIX') : macros?.vix || (macros?.target ? Object.values(macros).find(m => m?.type === 'VIX') : null)
 
   if (loading) {
     return (
@@ -181,39 +186,20 @@ const Dashboard = () => {
   return (
     <div className="space-y-5 animate-fade-in">
       {/* Madde 3: Header */}
-      <div className="flex flex-col md:flex-row items-center justify-between gap-4 glass-card p-4">
+      <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-purple-500 to-cyan-500 flex items-center justify-center shadow-lg shadow-purple-500/20">
-            <TrendingUp className="w-6 h-6 text-white" />
+          <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-purple-500 to-cyan-500 flex items-center justify-center">
+            <TrendingUp className="w-5 h-5 text-white" />
           </div>
           <div>
-            <div className="text-xl font-bold bg-gradient-to-r from-purple-400 to-cyan-400 bg-clip-text text-transparent">FinansRadar Dashboard</div>
-            <div className="text-xs text-slate-400 -mt-0.5 font-medium tracking-wider">BORSA ANALİZ & TAHMİN</div>
+            <div className="text-lg font-bold bg-gradient-to-r from-purple-400 to-cyan-400 bg-clip-text text-transparent">FinansRadar Dashboard</div>
+            <div className="text-xs text-slate-400 -mt-0.5">BORSA ANALİZ & TAHMİN</div>
           </div>
         </div>
-
-        <div className="flex items-center gap-3 bg-white/5 p-2 rounded-2xl border border-white/10">
-          <div className="flex items-center gap-2">
-            <span className="text-[10px] font-bold text-slate-500 uppercase">Kıyasla:</span>
-            <select value={compareA} onChange={e => setCompareA(e.target.value)} className="bg-[#0f1025] border border-white/10 rounded-lg px-3 py-1.5 text-xs text-white focus:outline-none focus:border-purple-500/50 cursor-pointer">
-              {allTickersList.map(s => (
-                <option key={s.ticker} value={s.ticker.replace('.IS', '')}>{s.ticker.replace('.IS', '')}</option>
-              ))}
-            </select>
-          </div>
-          <div className="w-px h-6 bg-white/10" />
-          <div className="flex items-center gap-2">
-            <select value={compareB} onChange={e => setCompareB(e.target.value)} className="bg-[#0f1025] border border-white/10 rounded-lg px-3 py-1.5 text-xs text-white focus:outline-none focus:border-cyan-500/50 cursor-pointer">
-              {allTickersList.map(s => (
-                <option key={s.ticker} value={s.ticker.replace('.IS', '')}>{s.ticker.replace('.IS', '')}</option>
-              ))}
-            </select>
-          </div>
-        </div>
-
+        {/* Madde 46: Arama */}
         <form onSubmit={(e) => { e.preventDefault(); if(search) window.location.href = `/stock/${search.toUpperCase()}`}}>
-          <input type="text" placeholder="Hisse ara..." value={search} onChange={e => setSearch(e.target.value)}
-            className="bg-[#0f1025] border border-white/10 rounded-xl px-4 py-2 text-sm text-slate-300 placeholder-slate-500 focus:outline-none focus:border-purple-500/50 w-48" />
+          <input type="text" placeholder="Hisse ara... (THYAO...)" value={search} onChange={e => setSearch(e.target.value)}
+            className="bg-white/5 border border-white/10 rounded-xl px-4 py-2 text-sm text-slate-300 placeholder-slate-500 focus:outline-none focus:border-purple-500/50 w-64" />
         </form>
       </div>
 
@@ -336,16 +322,47 @@ const Dashboard = () => {
             <h2 className="text-xl font-bold flex items-center gap-2"><Globe size={22} className="text-cyan-400" /> Makro Ekonomik Etki Analizi</h2>
             <p className="text-xs text-slate-500 mt-1">Seçili ülkenin makro verilerinin şirketlere olası etkilerini inceleyin.</p>
           </div>
-          <div className="flex gap-3">
-            <select value={macroCountry} onChange={e => setMacroCountry(e.target.value)} className="bg-[#0f1025] border border-white/10 rounded-xl px-4 py-2 text-sm text-slate-300 focus:outline-none focus:border-cyan-500/50">
+          <div className="flex flex-wrap gap-2 items-center">
+            <select value={macroCountry} onChange={e => setMacroCountry(e.target.value)} className="bg-[#0f1025] border border-white/10 rounded-xl px-3 py-2 text-xs text-slate-300 focus:outline-none focus:border-cyan-500/50">
               <option value="TR">🇹🇷 Türkiye</option>
-              <option value="US">🇺🇸 Amerika Birleşik Devletleri</option>
-              <option value="EU">🇪🇺 Avrupa Birliği</option>
+              <option value="US">🇺🇸 Amerika</option>
+              <option value="EU">🇪🇺 Avrupa</option>
             </select>
-            <select value={macroCompany} onChange={e => setMacroCompany(e.target.value)} className="bg-[#0f1025] border border-white/10 rounded-xl px-4 py-2 text-sm text-slate-300 focus:outline-none focus:border-purple-500/50">
-              <option value="TÜMÜ">Tüm Şirketler (Genel)</option>
-              {tickers.map(t => <option key={t} value={t}>{t}</option>)}
-            </select>
+            {/* Hisse 1 */}
+            <div className="flex flex-col gap-1">
+              <input type="text" placeholder="Ara hisse 1..." value={compareSearch1} onChange={e => setCompareSearch1(e.target.value)}
+                className="bg-[#0f1025] border border-purple-500/30 rounded-lg px-2 py-1 text-[10px] text-slate-300 w-32 focus:outline-none" />
+              <select value={macroCompany} onChange={e => { setMacroCompany(e.target.value); setCompareSearch1('') }}
+                className="bg-[#0f1025] border border-purple-500/50 rounded-xl px-3 py-1.5 text-xs text-white focus:outline-none w-40">
+                <option value="TÜMÜ">Tüm Şirketler</option>
+                {(allStocksForCompare.length > 0 ? allStocksForCompare : tickers.map(t => ({ ticker: t, name: t })))
+                  .filter(s => {
+                    const tick = (s.ticker || '').replace('.IS', '')
+                    const q = compareSearch1.toLowerCase()
+                    return !q || tick.toLowerCase().includes(q) || (s.name || '').toLowerCase().includes(q)
+                  })
+                  .map(s => { const tick = (s.ticker||'').replace('.IS',''); return <option key={tick} value={tick} className="bg-[#0f1025]">{tick}</option> })
+                }
+              </select>
+            </div>
+            <span className="text-slate-500 text-sm font-bold">vs</span>
+            {/* Hisse 2 */}
+            <div className="flex flex-col gap-1">
+              <input type="text" placeholder="Ara hisse 2..." value={compareSearch2} onChange={e => setCompareSearch2(e.target.value)}
+                className="bg-[#0f1025] border border-cyan-500/30 rounded-lg px-2 py-1 text-[10px] text-slate-300 w-32 focus:outline-none" />
+              <select value={macroCompany2} onChange={e => { setMacroCompany2(e.target.value); setCompareSearch2('') }}
+                className="bg-[#0f1025] border border-cyan-500/50 rounded-xl px-3 py-1.5 text-xs text-white focus:outline-none w-40">
+                <option value="TÜMÜ">Tüm Şirketler</option>
+                {(allStocksForCompare.length > 0 ? allStocksForCompare : tickers.map(t => ({ ticker: t, name: t })))
+                  .filter(s => {
+                    const tick = (s.ticker || '').replace('.IS', '')
+                    const q = compareSearch2.toLowerCase()
+                    return !q || tick.toLowerCase().includes(q) || (s.name || '').toLowerCase().includes(q)
+                  })
+                  .map(s => { const tick = (s.ticker||'').replace('.IS',''); return <option key={tick} value={tick} className="bg-[#0f1025]">{tick}</option> })
+                }
+              </select>
+            </div>
           </div>
         </div>
 
@@ -361,12 +378,24 @@ const Dashboard = () => {
               <p className="text-[10px] uppercase font-bold text-slate-500 tracking-wider mb-2">{m.label}</p>
               <p className={`text-3xl font-bold font-mono text-${m.color}-400 mb-1`}>{m.val}</p>
               <p className="text-xs text-slate-400">{m.desc}</p>
+              {/* Hisse 1 etkisi */}
               {macroCompany !== 'TÜMÜ' && (
-                <div className="mt-4 pt-3 border-t border-white/5">
+                <div className="mt-3 pt-2 border-t border-white/5">
                   <div className="flex items-center justify-between text-[10px]">
-                    <span className="text-slate-500">{macroCompany} Etkisi:</span>
+                    <span className="text-purple-400 font-bold">{macroCompany}:</span>
                     <span className={`font-bold ${m.id === 'faiz' && macroCountry === 'TR' ? 'text-rose-400' : m.id === 'cds' && macroCountry === 'TR' ? 'text-yellow-400' : 'text-emerald-400'}`}>
-                      {m.id === 'faiz' && macroCountry === 'TR' ? 'Yüksek Borç Maliyeti (-)' : m.id === 'cds' && macroCountry === 'TR' ? 'Yabancı Girişi Gecikmeli' : 'Pozitif / Nötr Koruma (+)'}
+                      {m.id === 'faiz' && macroCountry === 'TR' ? 'Yüksek Borç Maliyeti (-)' : m.id === 'cds' && macroCountry === 'TR' ? 'Gecikmeli Giriş' : 'Pozitif Koruma (+)'}
+                    </span>
+                  </div>
+                </div>
+              )}
+              {/* Hisse 2 etkisi */}
+              {macroCompany2 !== 'TÜMÜ' && (
+                <div className="mt-1 pt-1 border-t border-white/5">
+                  <div className="flex items-center justify-between text-[10px]">
+                    <span className="text-cyan-400 font-bold">{macroCompany2}:</span>
+                    <span className={`font-bold ${m.id === 'faiz' && macroCountry === 'TR' ? 'text-orange-400' : 'text-sky-400'}`}>
+                      {m.id === 'faiz' ? 'Kredi Riski Artıyor' : m.id === 'cds' ? 'Yabancı Kaçışı Riski' : 'Temkinli Değerlendirin'}
                     </span>
                   </div>
                 </div>

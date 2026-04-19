@@ -420,8 +420,8 @@ export async function analyzeStock(ticker, period = '3mo') {
   if (finalScore >= 75 && (var95 === null || var95 > -3.0)) signal = 'GÜÇLÜ AL';
   else if (finalScore >= 60) signal = 'AL';
   else if (finalScore >= 45) signal = 'BEKLE';
-  else if (finalScore < 45 || regime.probabilities.crisis > 0.6) signal = 'SAT';
-  else signal = 'GÜÇLÜ SAT';
+  else if (regime.probabilities.crisis > 0.6) signal = 'GÜÇLÜ SAT';
+  else signal = 'SAT';
 
   // Multi-objective reward
   const rewardResult = calcMultiObjectiveReward({

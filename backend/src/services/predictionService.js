@@ -264,7 +264,7 @@ class PredictionService {
     return {
       currentPrice: lastPrice,
       predictedPrice: finalConsensus,
-      change: ((finalPrediction - lastPrice) / lastPrice) * 100,
+      change: ((finalConsensus - lastPrice) / lastPrice) * 100,
       changePercent: parseFloat((((finalConsensus - lastPrice) / lastPrice) * 100).toFixed(2)),
       confidence: this.calculateConsensusConfidence(validPredictions),
       methods: validPredictions.map(p => p.method),

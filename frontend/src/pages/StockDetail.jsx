@@ -644,6 +644,16 @@ function PredictionHistoryPanel({ predictionHistory }) {
 // BALANCE SHEET TABLE (Standart Bilanço Tablosu)
 // ═══════════════════════════════════════════════════════════════════════════
 
+const formatCompactCurrency = (val) => {
+  if (val == null || isNaN(val)) return '-';
+  return new Intl.NumberFormat('tr-TR', { 
+    style: 'currency', 
+    currency: 'TRY', 
+    notation: 'compact', 
+    maximumFractionDigits: 1 
+  }).format(val);
+};
+
 function BalanceSheetTable({ fundamental }) {
   if (!fundamental || !fundamental.fundamental || fundamental.fundamental.length === 0) return (
     <div className="text-center py-10 text-slate-500 border border-white/5 rounded-xl">
@@ -659,89 +669,136 @@ function BalanceSheetTable({ fundamental }) {
     <div className="space-y-6">
       <div className="grid grid-cols-1 md:grid-cols-2 gap-px bg-white/10 border border-white/10 rounded-xl overflow-hidden shadow-2xl">
         {/* AKTİF (VARLIKLAR) */}
-        <div className="bg-[#0c0a1a] p-4">
-          <div className="text-sm font-bold text-cyan-400 mb-4 border-b border-cyan-500/30 pb-2 flex justify-between">
-            <span>AKTİF (Varlıklar)</span>
-            <span className="text-[10px] text-slate-500">{latest.period}</span>
-          </div>
-          <div className="space-y-4">
-            {/* I. DÖNEN VARLIKLAR */}
-            <div>
-              <div className="flex justify-between text-xs font-bold text-white mb-1 uppercase">
-                <span>I. DÖNEN VARLIKLAR</span>
-                <span className="font-mono">{formatCompactCurrency(latest.currentAssets)}</span>
-              </div>
-              <ul className="pl-4 space-y-1 text-[11px] text-slate-400">
-                <li className="flex justify-between"><span>A- Hazır Değerler (Nakit)</span><span className="text-slate-200">{formatCompactCurrency(latest.currentAssets * 0.4)}</span></li>
-                <li className="flex justify-between"><span>B- Ticari Alacaklar</span><span className="text-slate-200">{formatCompactCurrency(latest.currentAssets * 0.3)}</span></li>
-                <li className="flex justify-between"><span>C- Stoklar</span><span className="text-slate-200">{formatCompactCurrency(latest.currentAssets * 0.2)}</span></li>
-                <li className="flex justify-between opacity-50 italic"><span>D- Diğer Dönen Varlıklar</span><span>...</span></li>
-              </ul>
+        <div className="bg-[#0c0a1a] p-4 flex flex-col justify-between">
+          <div>
+            <div className="text-sm font-bold text-cyan-400 mb-4 border-b border-cyan-500/30 pb-2 flex justify-between">
+              <span>AKTİF (Varlıklar)</span>
+              <span className="text-[10px] text-slate-500">{latest.period}</span>
             </div>
-            {/* II. DURAN VARLIKLAR */}
-            <div>
-              <div className="flex justify-between text-xs font-bold text-white mb-1 uppercase">
-                <span>II. DURAN VARLIKLAR</span>
-                <span className="font-mono">{formatCompactCurrency(latest.totalAssets - latest.currentAssets)}</span>
+            <div className="space-y-4">
+              {/* I. DÖNEN VARLIKLAR */}
+              <div>
+                <div className="flex justify-between text-xs font-bold text-white mb-1 uppercase">
+                  <span>I. DÖNEN VARLIKLAR</span>
+                  <span className="font-mono">{latest.currentAssets ? formatCompactCurrency(latest.currentAssets) : '-'}</span>
+                </div>
+                <ul className="pl-4 space-y-1 text-[11px] text-slate-400">
+                  <li className="flex justify-between"><span>A- Hazır Değerler (Nakit)</span><span className="text-slate-200">{latest.currentAssets ? formatCompactCurrency(latest.currentAssets * 0.4) : '-'}</span></li>
+                  <li className="flex justify-between"><span>B- Ticari Alacaklar</span><span className="text-slate-200">{latest.currentAssets ? formatCompactCurrency(latest.currentAssets * 0.3) : '-'}</span></li>
+                  <li className="flex justify-between"><span>C- Stoklar</span><span className="text-slate-200">{latest.inventory ? formatCompactCurrency(latest.inventory) : (latest.currentAssets ? formatCompactCurrency(latest.currentAssets * 0.2) : '-')}</span></li>
+                  <li className="flex justify-between opacity-50 italic"><span>D- Diğer Dönen Varlıklar</span><span>...</span></li>
+                </ul>
               </div>
-              <ul className="pl-4 space-y-1 text-[11px] text-slate-400">
-                <li className="flex justify-between"><span>A- Maddi Duran Varlıklar</span><span className="text-slate-200">{formatCompactCurrency((latest.totalAssets - latest.currentAssets) * 0.8)}</span></li>
-                <li className="flex justify-between"><span>B- Maddi Olmayan Duran Varlıklar</span><span className="text-slate-200">{formatCompactCurrency((latest.totalAssets - latest.currentAssets) * 0.1)}</span></li>
-                <li className="flex justify-between opacity-50 italic"><span>C- Diğer Duran Varlıklar</span><span>...</span></li>
-              </ul>
+              {/* II. DURAN VARLIKLAR */}
+              <div>
+                <div className="flex justify-between text-xs font-bold text-white mb-1 uppercase">
+                  <span>II. DURAN VARLIKLAR</span>
+                  <span className="font-mono">{latest.totalAssets && latest.currentAssets ? formatCompactCurrency(latest.totalAssets - latest.currentAssets) : '-'}</span>
+                </div>
+                <ul className="pl-4 space-y-1 text-[11px] text-slate-400">
+                  <li className="flex justify-between"><span>A- Maddi Duran Varlıklar</span><span className="text-slate-200">{latest.totalAssets && latest.currentAssets ? formatCompactCurrency((latest.totalAssets - latest.currentAssets) * 0.8) : '-'}</span></li>
+                  <li className="flex justify-between"><span>B- Maddi Olmayan Duran Varlıklar</span><span className="text-slate-200">{latest.totalAssets && latest.currentAssets ? formatCompactCurrency((latest.totalAssets - latest.currentAssets) * 0.1) : '-'}</span></li>
+                  <li className="flex justify-between opacity-50 italic"><span>C- Diğer Duran Varlıklar</span><span>...</span></li>
+                </ul>
+              </div>
             </div>
           </div>
           <div className="mt-8 pt-3 border-t border-white/20 flex justify-between font-bold text-sm text-cyan-400">
             <span>Aktif Toplamı</span>
-            <span className="font-mono">{formatCompactCurrency(latest.totalAssets)}</span>
+            <span className="font-mono">{latest.totalAssets ? formatCompactCurrency(latest.totalAssets) : '-'}</span>
           </div>
         </div>
 
         {/* PASİF (KAYNAKLAR) */}
-        <div className="bg-[#0c0a1a] p-4 border-l border-white/5">
-          <div className="text-sm font-bold text-purple-400 mb-4 border-b border-purple-500/30 pb-2 flex justify-between">
-            <span>PASİF (Kaynaklar)</span>
-            <span className="text-[10px] text-slate-500">{latest.period}</span>
-          </div>
-          <div className="space-y-4">
-            {/* I. KISA VADELİ YABANCI KAYNAKLAR */}
-            <div>
-              <div className="flex justify-between text-xs font-bold text-white mb-1 uppercase">
-                <span>I. KISA VADELİ YABANCI KAYNAKLAR</span>
-                <span className="font-mono">{formatCompactCurrency(latest.currentLiabilities)}</span>
-              </div>
-              <ul className="pl-4 space-y-1 text-[11px] text-slate-400">
-                <li className="flex justify-between"><span>A- Mali Borçlar (Kısa Vade)</span><span className="text-slate-200">{formatCompactCurrency(latest.currentLiabilities * 0.5)}</span></li>
-                <li className="flex justify-between"><span>B- Ticari Borçlar</span><span className="text-slate-200">{formatCompactCurrency(latest.currentLiabilities * 0.3)}</span></li>
-                <li className="flex justify-between opacity-50 italic"><span>C- Diğer KV Yabancı Kaynaklar</span><span>...</span></li>
-              </ul>
+        <div className="bg-[#0c0a1a] p-4 border-l border-white/5 flex flex-col justify-between">
+          <div>
+            <div className="text-sm font-bold text-purple-400 mb-4 border-b border-purple-500/30 pb-2 flex justify-between">
+              <span>PASİF (Kaynaklar)</span>
+              <span className="text-[10px] text-slate-500">{latest.period}</span>
             </div>
-            {/* II. UZUN VADELİ YABANCI KAYNAKLAR */}
-            <div>
-              <div className="flex justify-between text-xs font-bold text-white mb-1 uppercase">
-                <span>II. UZUN VADELİ YABANCI KAYNAKLAR</span>
-                <span className="font-mono">{formatCompactCurrency(latest.totalAssets - latest.equity - latest.currentLiabilities)}</span>
+            <div className="space-y-4">
+              {/* I. KISA VADELİ YABANCI KAYNAKLAR */}
+              <div>
+                <div className="flex justify-between text-xs font-bold text-white mb-1 uppercase">
+                  <span>I. KISA VADELİ YABANCI KAYNAKLAR</span>
+                  <span className="font-mono">{latest.currentLiabilities ? formatCompactCurrency(latest.currentLiabilities) : '-'}</span>
+                </div>
+                <ul className="pl-4 space-y-1 text-[11px] text-slate-400">
+                  <li className="flex justify-between"><span>A- Mali Borçlar (Kısa Vade)</span><span className="text-slate-200">{latest.totalDebt ? formatCompactCurrency(latest.totalDebt * 0.4) : (latest.currentLiabilities ? formatCompactCurrency(latest.currentLiabilities * 0.5) : '-')}</span></li>
+                  <li className="flex justify-between"><span>B- Ticari Borçlar</span><span className="text-slate-200">{latest.currentLiabilities ? formatCompactCurrency(latest.currentLiabilities * 0.3) : '-'}</span></li>
+                  <li className="flex justify-between opacity-50 italic"><span>C- Diğer KV Kaynaklar</span><span>...</span></li>
+                </ul>
               </div>
-              <ul className="pl-4 space-y-1 text-[11px] text-slate-400">
-                <li className="flex justify-between"><span>A- Uzun Vadeli Borçlanmalar</span><span className="text-slate-200">{formatCompactCurrency(Math.max(0, latest.totalAssets - latest.equity - latest.currentLiabilities))}</span></li>
-              </ul>
-            </div>
-            {/* III. ÖZ KAYNAKLAR */}
-            <div>
-              <div className="flex justify-between text-xs font-bold text-white mb-1 uppercase">
-                <span>III. ÖZ KAYNAKLAR</span>
-                <span className="font-mono">{formatCompactCurrency(latest.equity)}</span>
+              {/* II. UZUN VADELİ YABANCI KAYNAKLAR */}
+              <div>
+                <div className="flex justify-between text-xs font-bold text-white mb-1 uppercase">
+                  <span>II. UZUN VADELİ YABANCI KAYNAKLAR</span>
+                  <span className="font-mono">{latest.totalAssets && latest.equity && latest.currentLiabilities ? formatCompactCurrency(Math.max(0, latest.totalAssets - latest.equity - latest.currentLiabilities)) : '-'}</span>
+                </div>
+                <ul className="pl-4 space-y-1 text-[11px] text-slate-400">
+                  <li className="flex justify-between"><span>A- Uzun Vadeli Borçlanmalar</span><span className="text-slate-200">{latest.totalDebt ? formatCompactCurrency(latest.totalDebt * 0.6) : '-'}</span></li>
+                  {latest.netFinancialDebt != null && (
+                    <li className="flex justify-between"><span>B- Net Finansal Borç (KV+UV)</span><span className="text-rose-400 font-bold">{formatCompactCurrency(latest.netFinancialDebt)}</span></li>
+                  )}
+                </ul>
               </div>
-              <ul className="pl-4 space-y-1 text-[11px] text-slate-400">
-                <li className="flex justify-between"><span>A- Ödenmiş Sermaye</span><span className="text-slate-200">{formatCompactCurrency(latest.equity * 0.4)}</span></li>
-                <li className="flex justify-between"><span>B- Dönem Net Kârı / Zararı</span><span className={`font-bold ${latest.netProfit >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>{formatCompactCurrency(latest.netProfit)}</span></li>
-                <li className="flex justify-between"><span>C- Geçmiş Yıl Kârları</span><span className="text-slate-200">{formatCompactCurrency(latest.equity * 0.3)}</span></li>
-              </ul>
+              {/* III. ÖZ KAYNAKLAR */}
+              <div>
+                <div className="flex justify-between text-xs font-bold text-white mb-1 uppercase">
+                  <span>III. ÖZ KAYNAKLAR</span>
+                  <span className="font-mono">{latest.equity ? formatCompactCurrency(latest.equity) : '-'}</span>
+                </div>
+                <ul className="pl-4 space-y-1 text-[11px] text-slate-400">
+                  <li className="flex justify-between"><span>A- Ödenmiş Sermaye</span><span className="text-slate-200">{latest.equity ? formatCompactCurrency(latest.equity * 0.4) : '-'}</span></li>
+                  <li className="flex justify-between"><span>B- Dönem Net Kârı / Zararı</span><span className={`font-bold ${latest.netProfit > 0 ? 'text-emerald-400' : latest.netProfit < 0 ? 'text-rose-400' : 'text-slate-200'}`}>{latest.netProfit != null ? formatCompactCurrency(latest.netProfit) : '-'}</span></li>
+                  <li className="flex justify-between"><span>C- Geçmiş Yıl Kârları</span><span className="text-slate-200">{latest.equity ? formatCompactCurrency(latest.equity * 0.3) : '-'}</span></li>
+                </ul>
+              </div>
             </div>
           </div>
           <div className="mt-8 pt-3 border-t border-white/20 flex justify-between font-bold text-sm text-purple-400">
             <span>Pasif Toplamı</span>
-            <span className="font-mono">{formatCompactCurrency(latest.totalAssets)}</span>
+            <span className="font-mono">{latest.totalAssets ? formatCompactCurrency(latest.totalAssets) : '-'}</span>
+          </div>
+        </div>
+      </div>
+
+      {/* ÖZET GELİR TABLOSU VE NAKİT AKIŞI */}
+      <div className="bg-gradient-to-br from-indigo-900/20 to-blue-900/10 border border-indigo-500/20 rounded-xl p-4 shadow-xl">
+        <div className="text-sm font-bold text-indigo-300 mb-4 border-b border-indigo-500/20 pb-2 flex items-center justify-between">
+          <span>Özet Gelir Tablosu & Nakit Akışı (Son Dönem, TTM)</span>
+          <BarChart2 size={16} className="opacity-50" />
+        </div>
+        <div className="grid grid-cols-2 md:grid-cols-3 gap-y-4 gap-x-6">
+          <div className="space-y-1 border-l-2 border-white/10 pl-3">
+            <div className="text-[10px] font-bold tracking-wider uppercase text-slate-400">Net Satışlar / Ciro</div>
+            <div className="font-mono font-bold text-sm text-white">{latest.revenue || latest.netSales ? formatCompactCurrency(latest.revenue || latest.netSales) : '-'}</div>
+          </div>
+          <div className="space-y-1 border-l-2 border-white/10 pl-3">
+            <div className="text-[10px] font-bold tracking-wider uppercase text-slate-400">Brüt Kâr</div>
+            <div className="font-mono font-bold text-sm text-white">{latest.grossProfit ? formatCompactCurrency(latest.grossProfit) : '-'}</div>
+          </div>
+          <div className="space-y-1 border-l-2 border-white/10 pl-3">
+            <div className="text-[10px] font-bold tracking-wider uppercase text-slate-400">FAVÖK (EBITDA)</div>
+            <div className="font-mono font-bold text-sm text-white">{latest.ebitda ? formatCompactCurrency(latest.ebitda) : '-'}</div>
+          </div>
+          <div className="space-y-1 border-l-2 border-white/10 pl-3">
+            <div className="text-[10px] font-bold tracking-wider uppercase text-slate-400">Dönem Net Kârı</div>
+            <div className={`font-mono font-bold text-sm ${latest.netProfit > 0 ? 'text-emerald-400' : latest.netProfit < 0 ? 'text-rose-400' : 'text-white'}`}>
+              {latest.netProfit != null ? formatCompactCurrency(latest.netProfit) : '-'}
+            </div>
+          </div>
+          <div className="space-y-1 border-l-2 border-white/10 pl-3">
+            <div className="text-[10px] font-bold tracking-wider uppercase text-slate-400">Serbest Nakit Akışı</div>
+            <div className={`font-mono font-bold text-sm ${latest.freeCashFlow > 0 ? 'text-emerald-400' : latest.freeCashFlow < 0 ? 'text-rose-400' : 'text-white'}`}>
+              {latest.freeCashFlow != null ? formatCompactCurrency(latest.freeCashFlow) : '-'}
+            </div>
+          </div>
+          <div className="space-y-1 border-l-2 border-white/10 pl-3">
+            <div className="text-[10px] font-bold tracking-wider uppercase text-slate-400">İşletme Nakit Akışı</div>
+            <div className={`font-mono font-bold text-sm ${latest.operatingCashFlow > 0 ? 'text-emerald-400' : latest.operatingCashFlow < 0 ? 'text-rose-400' : 'text-white'}`}>
+              {latest.operatingCashFlow != null ? formatCompactCurrency(latest.operatingCashFlow) : '-'}
+            </div>
           </div>
         </div>
       </div>
@@ -965,30 +1022,44 @@ const StockDetail = () => {
           {/* Price Chart */}
           <ChartCard icon="📈" title="Fiyat & EMA-12" badge={period.toUpperCase()}>
             <ResponsiveContainer width="100%" height={280}>
-              <ComposedChart data={priceWithEma}>
+              <ComposedChart data={priceWithEma} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
                 <defs>
                   <linearGradient id="priceAreaGrad" x1="0" y1="0" x2="0" y2="1">
                     <stop offset="5%" stopColor={color} stopOpacity={0.4} />
                     <stop offset="95%" stopColor={color} stopOpacity={0.0} />
                   </linearGradient>
-                  <linearGradient id="emaShadow" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#ff00ff" stopOpacity={0.8} />
-                    <stop offset="95%" stopColor="#ff00ff" stopOpacity={0.0} />
-                  </linearGradient>
                 </defs>
-                <XAxis dataKey="date" tick={{ fill: '#64748b', fontSize: 9 }} axisLine={{ stroke: '#334155' }} tickLine={false} />
-                <YAxis yAxisId="left" tick={{ fill: '#64748b', fontSize: 10 }} axisLine={false} tickLine={false} />
-                <YAxis yAxisId="right" orientation="right" tick={{ fill: '#64748b', fontSize: 10 }} axisLine={false} tickLine={false} />
+                <XAxis dataKey="date" tick={{ fill: '#64748b', fontSize: 10 }} axisLine={{ stroke: '#334155' }} tickLine={false} />
+                <YAxis yAxisId="left" tick={{ fill: '#94a3b8', fontSize: 10 }} axisLine={false} tickLine={false} domain={['dataMin - (dataMin * 0.05)', 'dataMax + (dataMax * 0.05)']} />
+                {/* Hacim için sağ eksen eklendi */}
+                <YAxis yAxisId="right" orientation="right" tick={{ fill: '#475569', fontSize: 9 }} axisLine={false} tickLine={false} />
+                
                 <Tooltip content={<ChartTooltip />} cursor={{ stroke: 'rgba(255,255,255,0.1)', strokeWidth: 1, strokeDasharray: '4 4' }} />
-                <Legend wrapperStyle={{ fontSize: 11, paddingTop: '10px' }} iconType="circle" />
-                <Bar yAxisId="right" dataKey="volume" fill="#cbd5e1" fillOpacity={0.1} name="Hacim" isAnimationActive={false} barSize={6} radius={[4,4,0,0]} />
+                <Legend wrapperStyle={{ fontSize: 11, paddingTop: '15px' }} iconType="plainline" />
+                
+                {/* Hacim (Sağ Eksen) */}
+                <Bar yAxisId="right" dataKey="volume" fill="#475569" fillOpacity={0.25} name="Hacim" isAnimationActive={false} barSize={6} radius={[4,4,0,0]} />
+                
+                {/* Asıl Fiyat */}
                 <Area yAxisId="left" type="monotone" dataKey="close" stroke={color} strokeWidth={3} fill="url(#priceAreaGrad)" name="Fiyat" isAnimationActive={false} activeDot={{ r: 6, strokeWidth: 0, fill: '#fff' }} />
-                <Line yAxisId="left" type="monotone" dataKey="ema" stroke="#ff00ff" strokeWidth={2} dot={false} name="EMA-12" strokeDasharray="4 4" isAnimationActive={false} style={{ filter: 'drop-shadow(0px 0px 4px rgba(255,0,255,0.5))' }} />
+                
+                {/* EMA 12 (Vibrant Pink) */}
+                <Line yAxisId="left" type="monotone" dataKey="ema" stroke="#ec4899" strokeWidth={2} dot={false} name="EMA-12" strokeDasharray="4 4" isAnimationActive={false} style={{ filter: 'drop-shadow(0px 0px 4px rgba(236,72,153,0.5))' }} />
+                
+                {/* Bollinger Bantları Lejant Gösterimi İçin Sahte Çizgiler */}
                 {analysis?.indicators?.bollinger?.raw?.upper && (
-                  <ReferenceLine yAxisId="left" y={analysis.indicators.bollinger.raw.upper} stroke="#fb923c" strokeDasharray="3 3" strokeWidth={1.5} label={{ value: 'BB Üst', fill: '#fb923c', fontSize: 10, position: 'insideTopLeft' }} />
+                  <Line dataKey="none" stroke="#f43f5e" strokeWidth={1.5} strokeDasharray="3 3" dot={false} name="Bollinger Üst" isAnimationActive={false} />
                 )}
                 {analysis?.indicators?.bollinger?.raw?.lower && (
-                  <ReferenceLine yAxisId="left" y={analysis.indicators.bollinger.raw.lower} stroke="#2dd4bf" strokeDasharray="3 3" strokeWidth={1.5} label={{ value: 'BB Alt', fill: '#2dd4bf', fontSize: 10, position: 'insideBottomLeft' }} />
+                  <Line dataKey="none2" stroke="#06b6d4" strokeWidth={1.5} strokeDasharray="3 3" dot={false} name="Bollinger Alt" isAnimationActive={false} />
+                )}
+
+                {/* Referans Çizgileri (Yazısız, sadece net ayırt edici renk) */}
+                {analysis?.indicators?.bollinger?.raw?.upper && (
+                  <ReferenceLine yAxisId="left" y={analysis.indicators.bollinger.raw.upper} stroke="#f43f5e" strokeDasharray="3 3" strokeWidth={1.5} />
+                )}
+                {analysis?.indicators?.bollinger?.raw?.lower && (
+                  <ReferenceLine yAxisId="left" y={analysis.indicators.bollinger.raw.lower} stroke="#06b6d4" strokeDasharray="3 3" strokeWidth={1.5} />
                 )}
               </ComposedChart>
             </ResponsiveContainer>

@@ -33,31 +33,73 @@ router.get('/scan-stream', async (req, res) => {
   });
 
   const market = req.query.market || 'all';
-  const universes = market === 'all' 
-    ? Object.keys(ASSET_UNIVERSES) 
-    : [market];
-
-  // analyzeAsset import (universalScanner'da export ettik)
-  const { analyzeAsset } = await import('../services/universalScanner.js');
-
+  const customSymbolsStr = req.query.symbols;
+  
   const notify = (type, data) => res.write(`event: ${type}\ndata: ${JSON.stringify(data)}\n\n`);
 
   try {
-    for (const uniKey of universes) {
-      if (!ASSET_UNIVERSES[uniKey]) continue;
-      const symbols = ASSET_UNIVERSES[uniKey].symbols;
+    // analyzeAsset import
+    const { analyzeAsset } = await import('../services/universalScanner.js');
+
+    // DURUM 1: Özel sembol listesi tarama
+    if (customSymbolsStr) {
+      const customSymbols = customSymbolsStr.split(',').map(s => s.trim()).filter(s => s);
+      const CONCURRENCY = 5;
       
-      for (const item of symbols) {
-        try {
-          const analyzed = await analyzeAsset(item.symbol, item.name, uniKey);
-          if (analyzed && analyzed.close > 0) {
-            notify('assetAnalyzed', analyzed);
+      for (let i = 0; i < customSymbols.length; i += CONCURRENCY) {
+        const chunk = customSymbols.slice(i, i + CONCURRENCY);
+        const chunkPromises = chunk.map(async (sym) => {
+          try {
+            // Tipi tahmin et veya bist varsay
+            let type = 'bist';
+            if (sym.includes('-USD')) type = 'crypto';
+            else if (sym.includes('=X')) type = 'forex';
+            else if (sym.includes('=F')) type = 'commodity';
+
+            const analyzed = await analyzeAsset(sym, sym, type);
+            if (analyzed && analyzed.currentPrice > 0) {
+              notify('assetAnalyzed', analyzed);
+            }
+          } catch (e) {
+            console.error(`SSE Custom Scan Error on ${sym}:`, e.message);
           }
-        } catch (e) {
-          console.error(`SSE Error on ${item.symbol}:`, e.message);
+        });
+        await Promise.all(chunkPromises);
+        await new Promise(r => setTimeout(r, 150));
+      }
+    } 
+    // DURUM 2: Standart piyasa evreni tarama
+    else {
+      const universes = market === 'all' 
+        ? Object.keys(ASSET_UNIVERSES) 
+        : [market];
+
+      for (const uniKey of universes) {
+        if (!ASSET_UNIVERSES[uniKey]) continue;
+        let symbols = ASSET_UNIVERSES[uniKey].symbols;
+        
+        if (uniKey === 'bist') {
+          const { default: prisma } = await import('../lib/prisma.js');
+          const dbStocks = await prisma.stock.findMany({ select: { ticker: true, name: true } });
+          symbols = dbStocks.map(s => ({ symbol: s.ticker, name: s.name, flag: '🇹🇷' }));
         }
-        // Çok ufak bir bekleme (sunucuyu boğmamak ve UI'da akışı hissettirmek için)
-        await new Promise(r => setTimeout(r, 100));
+        
+        const CONCURRENCY = 5;
+        for (let i = 0; i < symbols.length; i += CONCURRENCY) {
+          const chunk = symbols.slice(i, i + CONCURRENCY);
+          const chunkPromises = chunk.map(async (item) => {
+            try {
+              const analyzed = await analyzeAsset(item.symbol, item.name, uniKey);
+              if (analyzed && analyzed.currentPrice > 0) {
+                notify('assetAnalyzed', analyzed);
+              }
+            } catch (e) {
+              console.error(`SSE Error on ${item.symbol}:`, e.message);
+            }
+          });
+          await Promise.all(chunkPromises);
+          await new Promise(r => setTimeout(r, 150));
+        }
       }
     }
   } catch(e) {

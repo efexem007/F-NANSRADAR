@@ -65,11 +65,16 @@ model FundamentalData {
   totalAssets        Float?
   equity             Float?
   netSales           Float?
+  revenue            Float?
   grossProfit        Float?
   ebitda             Float?
   netProfit          Float?
   netFinancialDebt   Float?
+  totalDebt          Float?
   sharesOutstanding  Float?
+  freeCashFlow       Float?
+  operatingCashFlow  Float?
+  createdAt          DateTime @default(now())
   stock              Stock    @relation(fields: [stockTicker], references: [ticker])
   @@unique([stockTicker, period])
 }
@@ -91,12 +96,22 @@ model StockRatio {
   stockTicker     String   @id
   currentRatio    Float?
   acidTest        Float?
+  quickRatio      Float?
   grossMargin     Float?
+  ebitdaMargin    Float?
   netMargin       Float?
+  operatingMargin Float?
   leverage        Float?
+  leverageRatio   Float?
   nfbToEbitda     Float?
   fk              Float?
   pddd            Float?
+  roe             Float?
+  roa             Float?
+  beta            Float?
+  evToEbitda      Float?
+  evToRevenue     Float?
+  dividendYield   Float?
   calculatedAt    DateTime @default(now())
   stock           Stock    @relation(fields: [stockTicker], references: [ticker])
 }

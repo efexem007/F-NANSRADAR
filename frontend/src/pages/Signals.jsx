@@ -31,7 +31,45 @@ const Signals = () => {
   // Tarama state
   const [scanning, setScanning] = useState(false)
   const [scanProgress, setScanProgress] = useState({ current: 0, total: 0, text: '' })
-  const [liveSignals, setLiveSignals] = useState([])
+  
+  // Sinyalleri kalıcı olarak Local Storage'dan oku veya Scanner'dan anında devral!
+  const [liveSignals, setLiveSignals] = useState(() => {
+    try {
+      // 1. Kendi taraması ve Ana Scanner'ın devasa taramasını (500+) kıyasla!
+      const saved = localStorage.getItem('finansradar_signals_v2');
+      const scannerSaved = localStorage.getItem('lastScanResults');
+      
+      let localSignals = saved ? JSON.parse(saved) : [];
+      let scannerResults = [];
+      
+      if (scannerSaved) {
+        const parsed = JSON.parse(scannerSaved);
+        if (parsed && parsed.results) {
+          scannerResults = parsed.results.map(r => ({
+             ticker: r.symbol?.replace('.IS', '') || 'UNKNOWN',
+             signal: r.signal || r.signals?.final?.signal || 'BEKLE',
+             score: r.score || r.signals?.final?.score || 50,
+             price: r.currentPrice || r.live?.price || 0,
+             rsi: r.indicators?.rsi || r.technical?.rsi?.val || null,
+             macdHist: r.indicators?.macdHist || r.technical?.macd?.hist || null,
+             regime: r.regime || r.analysis?.regime?.name || 'Sakin',
+             createdAt: r.timestamp || new Date().toISOString()
+          }));
+        }
+      }
+
+      // 2. Hangisi daha ÇOK veri içeriyorsa onu seç (514 hisse talebi için kritik)
+      if (scannerResults.length >= localSignals.length && scannerResults.length > 0) {
+        localStorage.setItem('finansradar_signals_v2', JSON.stringify(scannerResults));
+        return scannerResults;
+      }
+      
+      return localSignals;
+    } catch (e) {
+      console.error("Signals Sync Error:", e);
+      return [];
+    }
+  });
   const eventSourceRef = useRef(null)
 
   // Başlangıçta geçmiş sinyalleri yükle
@@ -49,80 +87,97 @@ const Signals = () => {
 
   // ═══ PİYASAYI TARA (SSE ile canlı akış) ═══════════════════════════════
   const startScan = () => {
-    if (scanning) return
-    setScanning(true)
-    setLiveSignals([])
-    setScanProgress({ current: 0, total: 0, text: 'Bağlantı kuruluyor...' })
+    if (scanning) return;
+    setScanning(true);
+    setScanProgress({ current: 0, total: 0, text: 'Bağlantı kuruluyor...' });
 
-    // Token'ı al (SSE için query param olarak gönderilecek)
-    const token = localStorage.getItem('token')
-    const url = `http://localhost:3001/api/signal/scan-all${token ? `?token=${token}` : ''}`
+    // Toast ve event sızıntılarını temizle
+    if (eventSourceRef.current) {
+      eventSourceRef.current.close();
+    }
 
-    const es = new EventSource(url)
-    eventSourceRef.current = es
+    const token = localStorage.getItem('token');
+    const url = `http://localhost:3001/api/signal/scan-all${token ? `?token=${token}` : ''}`;
+
+    const es = new EventSource(url);
+    eventSourceRef.current = es;
 
     es.addEventListener('init', (e) => {
-      const data = JSON.parse(e.data)
-      setScanProgress({ current: 0, total: data.total, text: `${data.total} hisse taranacak...` })
-    })
+      const data = JSON.parse(e.data);
+      setScanProgress({ current: 0, total: data.total, text: `${data.total} hisse taranacak...` });
+    });
 
     es.addEventListener('signal', (e) => {
-      const data = JSON.parse(e.data)
+      const data = JSON.parse(e.data);
       setLiveSignals(prev => {
-        // Duplicate kontrolü
-        const exists = prev.find(s => s.ticker === data.ticker)
-        if (exists) return prev.map(s => s.ticker === data.ticker ? data : s)
-        return [...prev, data]
-      })
+        const newData = [...prev];
+        const existingIndex = newData.findIndex(s => s.ticker === data.ticker);
+        
+        if (existingIndex >= 0) {
+          newData[existingIndex] = { ...newData[existingIndex], ...data }; // Upsert (Güncelle)
+        } else {
+          newData.push(data); // Yeni Ekle
+        }
+        
+        // localStorage'a anında kaydet
+        localStorage.setItem('finansradar_signals_v2', JSON.stringify(newData));
+        return newData;
+      });
+      
       setScanProgress({
         current: data.index,
         total: data.total,
         text: `${data.ticker} analiz edildi — ${data.signal} (${data.score}/100)`
-      })
-    })
+      });
+    });
 
     es.addEventListener('error', (e) => {
       try {
-        const data = JSON.parse(e.data)
+        const data = JSON.parse(e.data);
         setScanProgress(prev => ({
           ...prev,
           current: data.index,
           text: `⚠ ${data.ticker} atlandı: ${data.error}`
-        }))
+        }));
       } catch {
-        // SSE bağlantı hatası
+        // SSE error
       }
-    })
+    });
 
     es.addEventListener('done', (e) => {
-      const data = JSON.parse(e.data)
+      const data = JSON.parse(e.data);
       setScanProgress({
         current: data.total,
         total: data.total,
         text: `✅ Tarama tamamlandı! ${data.success} başarılı, ${data.failed} hatalı`
-      })
-      setScanning(false)
-      es.close()
-      eventSourceRef.current = null
-      // Geçmişi de yenile
-      fetchSignals()
-    })
+      });
+      setScanning(false);
+      es.close();
+      eventSourceRef.current = null;
+    });
 
     es.onerror = () => {
-      setScanning(false)
-      es.close()
-      eventSourceRef.current = null
-    }
-  }
+      setScanning(false);
+      es.close();
+      eventSourceRef.current = null;
+    };
+  };
 
   const stopScan = () => {
     if (eventSourceRef.current) {
-      eventSourceRef.current.close()
-      eventSourceRef.current = null
+      eventSourceRef.current.close();
+      eventSourceRef.current = null;
     }
-    setScanning(false)
-    setScanProgress(prev => ({ ...prev, text: '⏹ Tarama durduruldu.' }))
-  }
+    setScanning(false);
+    setScanProgress(prev => ({ ...prev, text: '⏹ Tarama durduruldu.' }));
+  };
+
+  const resetSignals = () => {
+    if (window.confirm("Tüm taranan sinyalleri temizlemek istediğinize emin misiniz?")) {
+      localStorage.removeItem('finansradar_signals_v2');
+      setLiveSignals([]);
+    }
+  };
 
   // Gösterilecek veri: tarama sırasında liveSignals, yoksa geçmiş signals
   const displayData = liveSignals.length > 0 ? liveSignals : signals
@@ -179,6 +234,11 @@ const Signals = () => {
           <button onClick={fetchSignals} className="btn-outline" disabled={scanning}>
             <RefreshCw size={14} className={loading ? 'animate-spin' : ''} /> Geçmişi Yükle
           </button>
+          {liveSignals.length > 0 && (
+            <button onClick={resetSignals} className="btn-outline !border-red-500/30 !text-red-400 hover:!bg-red-500/10" title="Taramayı Sıfırla" disabled={scanning}>
+              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 6h18"></path><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"></path><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"></path></svg>
+            </button>
+          )}
         </div>
       </div>
 

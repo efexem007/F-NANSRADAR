@@ -5,7 +5,7 @@ import toast from 'react-hot-toast';
 import {
   Search, RefreshCw, Zap, TrendingUp, TrendingDown, ChevronDown, ChevronRight,
   Star, StarOff, Eye, ArrowUpRight, ArrowDownRight, Filter, Globe, BarChart2,
-  Layers, Target, ShieldCheck, AlertTriangle, Plus, X, Clock, Cpu
+  Layers, Target, ShieldCheck, AlertTriangle, Plus, X, Clock, Cpu, Trash2
 } from 'lucide-react';
 import ChartCard from '../components/ChartCard';
 import Backtest from './Backtest';
@@ -70,16 +70,26 @@ function formatPrice(price, type) {
 // ASSET ROW
 // ═══════════════════════════════════════════════════════════════════════════
 
-function AssetRow({ asset, onWatch, isWatched, onNavigate }) {
+function AssetRow({ asset, onWatch, isWatched, onNavigate, isSelected, onSelect }) {
   const sc = SIGNAL_COLORS[asset.signal] || SIGNAL_COLORS['BEKLE'];
 
   return (
     <tr
-      className="group cursor-pointer hover:bg-white/3 transition-colors border-b border-white/3"
+      className={`group cursor-pointer hover:bg-white/3 transition-colors border-b border-white/3 ${isSelected ? 'bg-purple-500/5' : ''}`}
       onClick={() => onNavigate(asset)}
     >
+      {/* Checkbox */}
+      <td className="py-2.5 px-2" onClick={(e) => e.stopPropagation()}>
+        <input 
+          type="checkbox" 
+          checked={isSelected}
+          onChange={() => onSelect(asset.symbol)}
+          className="w-3.5 h-3.5 rounded border-white/10 bg-white/5 text-purple-600 focus:ring-offset-0 focus:ring-purple-500"
+        />
+      </td>
+
       {/* Symbol + Name */}
-      <td className="py-2.5 px-3">
+      <td className="py-2.5 px-2">
         <div className="flex items-center gap-2">
           <span className="text-sm">{asset.flag}</span>
           <div>
@@ -314,8 +324,12 @@ export default function Scanner() {
   const [activeTab, setActiveTab] = useState('scanner'); // 'scanner' vs 'lab'
   const [activeMarket, setActiveMarket] = useState('all');
   const [scanning, setScanning] = useState(false);
-  const [scanResults, setScanResults] = useState(null);
-  const [aiPicks, setAiPicks] = useState(null);
+  const [scanResults, setScanResults] = useState(() => {
+    try { const s = localStorage.getItem('lastScanResults'); return s ? JSON.parse(s) : null; } catch { return null; }
+  });
+  const [aiPicks, setAiPicks] = useState(() => {
+    try { const s = localStorage.getItem('lastAiPicks'); return s ? JSON.parse(s) : null; } catch { return null; }
+  });
   const [watchlist, setWatchlist] = useState([]);
   const [wlLoading, setWlLoading] = useState(false);
   const [sortBy, setSortBy] = useState('opportunityScore');
@@ -323,6 +337,7 @@ export default function Scanner() {
   const [searchQuery, setSearchQuery] = useState('');
   const [quickTicker, setQuickTicker] = useState('');
   const [view, setView] = useState('scanner');
+  const [selectedTickers, setSelectedTickers] = useState([]); // Yeni: Seçili semboller state'i
 
   // Load watchlist on mount
   useEffect(() => {
@@ -338,28 +353,76 @@ export default function Scanner() {
     setWlLoading(false);
   };
 
-  // Scan market (Real-time Streaming)
-  const handleScan = (market = activeMarket) => {
-    setScanning(true);
-    const loadingToast = toast.loading(`${market === 'all' ? 'Tüm piyasalar' : market.toUpperCase()} taranıyor... (0 bulundu)`);
-    
-    // Geçmiş taramayı sıfırla
-    setScanResults({ totalScanned: 0, totalPassed: 0, results: [], totalErrors: 0 });
+  // Tarama geçmişini tamamen sıfırla
+  const handleReset = () => {
+    toast.dismiss();
+    setScanResults(null);
     setAiPicks(null);
+    setSelectedTickers([]); // Seçimleri de sıfırla
+    localStorage.removeItem('lastScanResults');
+    localStorage.removeItem('lastAiPicks');
+    toast.success('Geçmiş tarama verileri temizlendi.');
+  };
+
+  const toggleSelect = (ticker) => {
+    setSelectedTickers(prev => 
+      prev.includes(ticker) ? prev.filter(t => t !== ticker) : [...prev, ticker]
+    );
+  };
+
+  const toggleSelectAll = (results) => {
+    if (selectedTickers.length === results.length) {
+      setSelectedTickers([]);
+    } else {
+      setSelectedTickers(results.map(r => r.symbol));
+    }
+  };
+
+  const eventSourceRef = React.useRef(null);
+
+  // Scan market (Real-time Streaming)
+  const handleScan = (marketOrSymbols = activeMarket) => {
+    // Varsa eski bağlantıyı öldür ki çift (hayalet) tarama olmasın
+    if (eventSourceRef.current) {
+      eventSourceRef.current.close();
+      eventSourceRef.current = null;
+    }
+
+    const isCustomList = Array.isArray(marketOrSymbols);
+    const symbolsParam = isCustomList ? `&symbols=${marketOrSymbols.join(',')}` : `&market=${marketOrSymbols}`;
+
+    toast.dismiss(); // Eski takılı kalmış olan ne varsa temizle
+    setScanning(true);
+    toast.loading(`${isCustomList ? `${marketOrSymbols.length} Seçili Varlık` : marketOrSymbols === 'all' ? 'Tüm piyasalar' : marketOrSymbols.toUpperCase()} taranıyor...`, { id: 'scan-toast' });
+    
+    // Geçmiş taramayı SIFIRLAMA, üzerine ekle
+    setScanResults(prev => prev || { totalScanned: 0, totalPassed: 0, results: [], totalErrors: 0 });
 
     const token = localStorage.getItem('token') || '';
-    const eventSource = new EventSource(`/api/universal/scan-stream?market=${market}&token=${token}`);
+    const eventSource = new EventSource(`/api/universal/scan-stream?token=${token}${symbolsParam}`);
+    eventSourceRef.current = eventSource;
 
     eventSource.addEventListener('assetAnalyzed', (event) => {
       const asset = JSON.parse(event.data);
       setScanResults(prev => {
-        const results = [...(prev?.results || []), asset];
-        // Ekrana sayıyı yansıt
-        toast.loading(`${market.toUpperCase()} Taranıyor... (${results.length} bulundu)`, { id: loadingToast });
+        const prevResults = prev?.results || [];
+        // Eğer bu sembol zaten varsa güncelle, yoksa listeye yeni ekle
+        const existingIdx = prevResults.findIndex(r => r.symbol === asset.symbol);
+        let newResults;
+        if (existingIdx >= 0) {
+          newResults = [...prevResults];
+          newResults[existingIdx] = asset;
+        } else {
+          newResults = [...prevResults, asset];
+        }
+
+        // Ekrana sayıyı yansıt (Aynı id ile toast'u güncelle)
+        toast.loading(`Taranıyor... (Toplam: ${newResults.length})`, { id: 'scan-toast' });
         return {
           totalScanned: (prev?.totalScanned || 0) + 1,
-          totalPassed: results.length,
-          results,
+          totalPassed: newResults.length,
+          results: newResults,
+          scanTime: prev?.scanTime // Eski tarihi done eventine kadar koru
         };
       });
     });
@@ -368,16 +431,20 @@ export default function Scanner() {
       eventSource.close();
       setScanning(false);
       setScanResults(prev => {
-        setAiPicks(generateLocalAIPicks(prev));
-        toast.success(`Tarama Tamamlandı! ${prev?.totalPassed || 0} varlık analiz edildi.`, { id: loadingToast });
-        return prev;
+        const finalResults = { ...prev, scanTime: new Date().toISOString() };
+        const newPicks = generateLocalAIPicks(finalResults);
+        setAiPicks(newPicks);
+        localStorage.setItem('lastScanResults', JSON.stringify(finalResults));
+        localStorage.setItem('lastAiPicks', JSON.stringify(newPicks));
+        toast.success(`Tarama Tamamlandı! Toplam ${finalResults.totalPassed || 0} varlık hafızada.`, { id: 'scan-toast' });
+        return finalResults;
       });
     });
 
     eventSource.addEventListener('error', (event) => {
       eventSource.close();
       setScanning(false);
-      toast.error(`Tarama kesildi veya tamamlandı.`, { id: loadingToast });
+      toast.error(`Tarama ağ hatası veya tamamlandı.`, { id: 'scan-toast' });
     });
   };
 
@@ -389,13 +456,18 @@ export default function Scanner() {
     try {
       const market = quickTicker.includes('=') ? 'forex' : quickTicker.includes('-') ? 'crypto' : 'bist';
       const { data } = await client.get(`/universal/scan/${quickTicker}?type=${market}`);
-      setScanResults({
+      const finalResults = {
         totalScanned: 1,
         totalPassed: 1,
         totalErrors: 0,
         results: [data],
         scanTime: new Date().toISOString()
-      });
+      };
+      setScanResults(finalResults);
+      const newPicks = generateLocalAIPicks(finalResults);
+      setAiPicks(newPicks);
+      localStorage.setItem('lastScanResults', JSON.stringify(finalResults));
+      localStorage.setItem('lastAiPicks', JSON.stringify(newPicks));
       toast.dismiss();
       toast.success(`Tarama tamamlandı`);
     } catch (err) {
@@ -549,16 +621,43 @@ export default function Scanner() {
               ))}
             </div>
 
-            <button
-              onClick={() => handleScan()}
-              disabled={scanning}
-              className="flex items-center gap-2 px-4 py-2 rounded-xl font-bold text-sm transition-all
-                         bg-gradient-to-r from-purple-600/40 to-cyan-600/40 border border-purple-500/50
-                         text-purple-200 hover:text-white hover:border-purple-400 disabled:opacity-50"
-            >
-              {scanning ? <RefreshCw size={16} className="animate-spin" /> : <Zap size={16} />}
-              {scanning ? 'Taranıyor...' : 'Piyasayı Tara'}
-            </button>
+            <div className="flex items-center gap-2">
+              {scanResults && (
+                <button
+                  onClick={handleReset}
+                  disabled={scanning}
+                  className="px-3 py-2 rounded-xl font-bold text-sm transition-all
+                             bg-red-500/10 border border-red-500/20 text-red-400 hover:bg-red-500/20
+                             disabled:opacity-50"
+                  title="Geçmişi Temizle"
+                >
+                  <Trash2 size={16} />
+                </button>
+              )}
+              {selectedTickers.length > 0 && (
+                <button
+                  onClick={() => handleScan(selectedTickers)}
+                  disabled={scanning}
+                  className="flex items-center gap-2 px-4 py-2 rounded-xl font-bold text-sm transition-all
+                             bg-gradient-to-r from-amber-600/40 to-orange-600/40 border border-amber-500/50
+                             text-amber-200 hover:text-white hover:border-amber-400 disabled:opacity-50"
+                  title="Sadece seçtiğin hisseleri tara"
+                >
+                  <Search size={16} />
+                  {scanning ? 'Taranıyor...' : `Seçiliyi Tara (${selectedTickers.length})`}
+                </button>
+              )}
+              <button
+                onClick={() => handleScan()}
+                disabled={scanning}
+                className="flex items-center gap-2 px-4 py-2 rounded-xl font-bold text-sm transition-all
+                           bg-gradient-to-r from-purple-600/40 to-cyan-600/40 border border-purple-500/50
+                           text-purple-200 hover:text-white hover:border-purple-400 disabled:opacity-50"
+              >
+                {scanning ? <RefreshCw size={16} className="animate-spin" /> : <Zap size={16} />}
+                {scanning ? 'Taranıyor...' : 'Piyasayı Tara'}
+              </button>
+            </div>
           </div>
 
           {/* Quick Scan + Search */}
@@ -608,10 +707,24 @@ export default function Scanner() {
                   </div>
                 ) : (
                   <div className="overflow-x-auto max-h-[600px]">
+                    {scanResults?.scanTime && (
+                      <div className="text-[11px] text-slate-400 mb-2 pl-2 flex items-center gap-1.5 border-b border-white/5 pb-2 sticky left-0">
+                        <Clock size={12} className="text-purple-400" />
+                        Sinyal hesaplama tarihi: <strong className="text-white">{new Date(scanResults.scanTime).toLocaleString('tr-TR')}</strong>
+                      </div>
+                    )}
                     <table className="w-full">
                       <thead className="sticky top-0 bg-[#12122a]/95 backdrop-blur-sm z-10">
                         <tr className="text-[10px] text-slate-500 uppercase tracking-wider">
-                          <th className="text-left py-2 px-3 cursor-pointer hover:text-slate-300" onClick={() => { setSortBy('symbol'); setSortDir(d => d === 'desc' ? 'asc' : 'desc'); }}>Varlık</th>
+                          <th className="py-2 px-2 w-8">
+                            <input 
+                              type="checkbox" 
+                              checked={displayResults.length > 0 && selectedTickers.length === displayResults.length}
+                              onChange={() => toggleSelectAll(displayResults)}
+                              className="w-3.5 h-3.5 rounded border-white/10 bg-white/5 text-purple-600 focus:ring-offset-0 focus:ring-purple-500"
+                            />
+                          </th>
+                          <th className="text-left py-2 px-1 cursor-pointer hover:text-slate-300" onClick={() => { setSortBy('symbol'); setSortDir(d => d === 'desc' ? 'asc' : 'desc'); }}>Varlık</th>
                           <th className="text-right py-2 px-2 cursor-pointer hover:text-slate-300" onClick={() => { setSortBy('currentPrice'); setSortDir(d => d === 'desc' ? 'asc' : 'desc'); }}>Fiyat</th>
                           <th className="text-right py-2 px-2 cursor-pointer hover:text-slate-300" onClick={() => { setSortBy('change1d'); setSortDir(d => d === 'desc' ? 'asc' : 'desc'); }}>1G %</th>
                           <th className="text-right py-2 px-2 hidden md:table-cell cursor-pointer hover:text-slate-300" onClick={() => { setSortBy('change7d'); setSortDir(d => d === 'desc' ? 'asc' : 'desc'); }}>7G %</th>
@@ -628,6 +741,8 @@ export default function Scanner() {
                             key={asset.symbol}
                             asset={asset}
                             isWatched={watchedSymbols.has(asset.symbol)}
+                            isSelected={selectedTickers.includes(asset.symbol)}
+                            onSelect={toggleSelect}
                             onWatch={toggleWatchlist}
                             onNavigate={navigateToAsset}
                           />
