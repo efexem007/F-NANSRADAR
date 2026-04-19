@@ -246,6 +246,21 @@ const Macro = () => {
                   onChange={e => { setStockSearch(e.target.value.toUpperCase()); setIsSearchOpen(true); }}
                   onFocus={() => setIsSearchOpen(true)}
                   onBlur={() => setTimeout(() => setIsSearchOpen(false), 200)}
+                  onKeyDown={e => {
+                    if (e.key === 'Enter' && stockSearch) {
+                      const q = stockSearch.toLowerCase();
+                      const firstMatch = allStocks.find(s => {
+                        const tick = (s.ticker || '').replace('.IS', '').toLowerCase();
+                        const nm = (s.name || '').toLowerCase();
+                        return tick.includes(q) || nm.includes(q);
+                      });
+                      if (firstMatch) {
+                        setSelectedStock((firstMatch.ticker || '').replace('.IS', ''));
+                        setStockSearch('');
+                        setIsSearchOpen(false);
+                      }
+                    }
+                  }}
                   className="w-full bg-[#0f0f23] border border-white/10 rounded-xl px-4 py-2 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-purple-500/50 shadow-lg"
                 />
                 
