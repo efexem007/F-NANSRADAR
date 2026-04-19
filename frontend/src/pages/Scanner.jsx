@@ -402,11 +402,16 @@ export default function Scanner() {
     const eventSource = new EventSource(`/api/universal/scan-stream?token=${token}${symbolsParam}`);
     eventSourceRef.current = eventSource;
 
+    eventSource.addEventListener('progress', (event) => {
+      const { current, total, text } = JSON.parse(event.data);
+      setScanProgress({ current, total, text: text || `${current}/${total} tarandı` });
+      toast.loading(`Taranıyor... ${current}/${total}`, { id: 'scan-toast' });
+    });
+
     eventSource.addEventListener('assetAnalyzed', (event) => {
       const asset = JSON.parse(event.data);
       setScanResults(prev => {
         const prevResults = prev?.results || [];
-        // Eğer bu sembol zaten varsa güncelle, yoksa listeye yeni ekle
         const existingIdx = prevResults.findIndex(r => r.symbol === asset.symbol);
         let newResults;
         if (existingIdx >= 0) {
@@ -415,16 +420,23 @@ export default function Scanner() {
         } else {
           newResults = [...prevResults, asset];
         }
-
-        // Ekrana sayıyı yansıt (Aynı id ile toast'u güncelle)
-        toast.loading(`Taranıyor... (Toplam: ${newResults.length})`, { id: 'scan-toast' });
         return {
           totalScanned: (prev?.totalScanned || 0) + 1,
           totalPassed: newResults.length,
           results: newResults,
-          scanTime: prev?.scanTime // Eski tarihi done eventine kadar koru
+          scanTime: prev?.scanTime
         };
       });
+    });
+
+    eventSource.addEventListener('assetSkipped', (event) => {
+      const { symbol, reason } = JSON.parse(event.data);
+      // Sadece logla, stream'i kesme!
+      console.warn(`[Tara] Atlandı: ${symbol} — ${reason}`);
+      setScanResults(prev => ({
+        ...prev,
+        totalErrors: (prev?.totalErrors || 0) + 1
+      }));
     });
 
     eventSource.addEventListener('done', (event) => {
@@ -436,15 +448,26 @@ export default function Scanner() {
         setAiPicks(newPicks);
         localStorage.setItem('lastScanResults', JSON.stringify(finalResults));
         localStorage.setItem('lastAiPicks', JSON.stringify(newPicks));
-        toast.success(`Tarama Tamamlandı! Toplam ${finalResults.totalPassed || 0} varlık hafızada.`, { id: 'scan-toast' });
+        toast.success(`Tarama Tamamlandı! ${finalResults.totalPassed || 0} varlık analiz edildi.`, { id: 'scan-toast', duration: 5000 });
         return finalResults;
       });
     });
 
     eventSource.addEventListener('error', (event) => {
+      // SSE 'error' event'i çoğu zaman bağlantı KAPANINCA tetiklenir (bu normal!)
+      // Sadece hala OPEN ise gerçek bir hata var demektir
+      if (eventSource.readyState === EventSource.CLOSED) {
+        // Bağlantı kapandı — zaten done event gelmiş olmalı, bir şey yapma
+        return;
+      }
+      if (eventSource.readyState === EventSource.CONNECTING) {
+        // Yeniden bağlanmaya çalışıyor, bekle
+        return;
+      }
+      // Gerçek ağ hatası
       eventSource.close();
       setScanning(false);
-      toast.error(`Tarama ağ hatası veya tamamlandı.`, { id: 'scan-toast' });
+      toast.error('Ağ bağlantısı kesildi. Lütfen tekrar deneyin.', { id: 'scan-toast' });
     });
   };
 

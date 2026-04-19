@@ -63,11 +63,9 @@ router.get('/history', asyncHandler(async (req, res) => {
 }));
 
 // ═══════════════════════════════════════════════════════════════════════════
-// PİYASAYI TARA — SSE (Server-Sent Events) ile canlı akış
-// Tüm BIST hisselerini tek tek tarar, her birini anında frontend'e gönderir
+// PİYASAYI TARA — SSE (Server-Sent Events) ile canlı akış (OPTİMİZE)
 // ═══════════════════════════════════════════════════════════════════════════
 router.get('/scan-all', async (req, res) => {
-  // SSE başlıkları
   res.writeHead(200, {
     'Content-Type': 'text/event-stream',
     'Cache-Control': 'no-cache',
@@ -75,55 +73,75 @@ router.get('/scan-all', async (req, res) => {
     'X-Accel-Buffering': 'no',
   });
 
-  // Tüm BIST hisselerini veritabanından çek (500+ Hisse)
-  const stocks = await prisma.stock.findMany({
-    select: { ticker: true }
-  });
-  
-  // Ticker'ları işle (sonunda .IS olan/olmayan)
-  const uniqueTickers = [...new Set(stocks.map(s => s.ticker.replace('.IS', '')))];
-  const total = uniqueTickers.length;
+  const write = (event, data) => {
+    try { res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`); } catch(e) {}
+  };
 
-  // Frontend'e toplam sayıyı bildir
-  res.write(`event: init\ndata: ${JSON.stringify({ total })}\n\n`);
+  // Keep-alive: her 12 saniyede bir boş ping gönder (nginx/proxy timeout'a karşı)
+  const keepAlive = setInterval(() => {
+    try { res.write(': ping\n\n'); } catch(e) { clearInterval(keepAlive); }
+  }, 12000);
+
+  // Timeout wrapper: bir hisse çok uzun sürerse otomatik atla
+  const withTimeout = (fn, ms = 20000) => Promise.race([
+    fn(),
+    new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout (20s)')), ms))
+  ]);
 
   let successCount = 0;
   let failCount = 0;
+  let processedCount = 0;
 
-  for (let i = 0; i < uniqueTickers.length; i++) {
-    const symbol = uniqueTickers[i];
-    const ticker = `${symbol}.IS`;
+  try {
+    const stocks = await prisma.stock.findMany({ select: { ticker: true } });
+    const uniqueTickers = [...new Set(stocks.map(s => s.ticker.replace('.IS', '')))];
+    const total = uniqueTickers.length;
 
-    try {
-      const result = await analyzeStock(ticker);
+    write('init', { total });
 
-      const signalData = {
-        ticker: symbol,
-        signal: result.signal || 'BEKLE',
-        score: result.finalScore || 0,
-        price: result.currentPrice || 0,
-        rsi: result.indicators?.rsi?.raw ? parseFloat(result.indicators.rsi.raw.toFixed(1)) : null,
-        macdHist: result.indicators?.macd?.raw?.hist ? parseFloat(result.indicators.macd.raw.hist.toFixed(3)) : null,
-        regime: result.regime?.name || 'Sakin',
-        createdAt: new Date().toISOString(),
-        index: i + 1,
-        total,
-      };
+    const CONCURRENCY = 4; // 4 paralel hisse — Yahoo rate limit için optimal denge
+    for (let i = 0; i < uniqueTickers.length; i += CONCURRENCY) {
+      const chunk = uniqueTickers.slice(i, i + CONCURRENCY);
+      
+      await Promise.allSettled(chunk.map(async (symbol) => {
+        const ticker = `${symbol}.IS`;
+        processedCount++;
+        try {
+          const result = await withTimeout(() => analyzeStock(ticker));
 
-      res.write(`event: signal\ndata: ${JSON.stringify(signalData)}\n\n`);
-      successCount++;
-    } catch (err) {
-      res.write(`event: error\ndata: ${JSON.stringify({ ticker: symbol, error: err.message, index: i + 1, total })}\n\n`);
-      failCount++;
+          const signalData = {
+            ticker: symbol,
+            signal: result.signal || 'BEKLE',
+            score: result.finalScore || 50,
+            price: result.currentPrice || 0,
+            rsi: result.indicators?.rsi?.raw != null ? parseFloat(result.indicators.rsi.raw.toFixed(1)) : null,
+            macdHist: result.indicators?.macd?.raw?.hist != null ? parseFloat(result.indicators.macd.raw.hist.toFixed(3)) : null,
+            regime: result.regime?.name || 'Sakin',
+            createdAt: new Date().toISOString(),
+            index: processedCount,
+            total,
+          };
+
+          write('signal', signalData);
+          successCount++;
+        } catch (err) {
+          write('error', { ticker: symbol, error: err.message, index: processedCount, total });
+          failCount++;
+        }
+      }));
+
+      // Her chunk'tan sonra kısa bekleme (Yahoo API koruması)
+      await new Promise(r => setTimeout(r, 400));
     }
-
-    // Rate limit — Yahoo API'yi boğmamak için
-    await new Promise(r => setTimeout(r, 1200));
+  } catch (fatalErr) {
+    console.error('[scan-all FATAL]:', fatalErr.message);
+    write('error', { ticker: 'SYSTEM', error: fatalErr.message, index: 0, total: 0 });
+  } finally {
+    clearInterval(keepAlive);
+    write('done', { total: processedCount, success: successCount, failed: failCount });
+    res.end();
   }
-
-  // Tarama bitti
-  res.write(`event: done\ndata: ${JSON.stringify({ total, success: successCount, failed: failCount })}\n\n`);
-  res.end();
 });
+
 
 export default router;
