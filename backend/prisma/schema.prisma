@@ -53,6 +53,9 @@ model Stock {
   fundamental   FundamentalData[]
   pricePoints   PricePoint[]
   ratios        StockRatio?
+
+  @@index([sector])
+  @@index([type])
 }
 
 model FundamentalData {
@@ -134,6 +137,7 @@ model SignalHistory {
   details     String?  // JSON string formatında alt skorlar (Teknik, Temel vb.)
   createdAt   DateTime @default(now())
   @@index([ticker, createdAt])
+  @@index([score])
 }
 
 model TechnicalIndicator {

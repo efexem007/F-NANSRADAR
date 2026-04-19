@@ -125,11 +125,38 @@ const Dashboard = () => {
     return data
   }, [prices, filteredTickers])
 
-  // Madde 14: Monthly change data
+  // Madde 14: Monthly change data (gerçek fiyat verisinden hesaplanır)
   const monthlyChangeData = useMemo(() => {
     const labels = ['Ock', 'Şub', 'Mar', 'Nis', 'May', 'Haz', 'Tem', 'Ağu', 'Eyl', 'Eki', 'Kas', 'Ara']
-    return labels.map(month => ({ month, change: parseFloat(((Math.random() - 0.4) * 12).toFixed(2)) }))
-  }, [])
+    if (filteredTickers.length === 0) {
+      return labels.map(month => ({ month, change: 0 }))
+    }
+    // Tüm hisselerin aylık değişimlerini hesapla
+    const monthlyChanges = labels.map((_, monthIdx) => {
+      let totalChange = 0
+      let count = 0
+      filteredTickers.forEach(t => {
+        const arr = prices[t]
+        if (!arr || arr.length < 2) return
+        // Her hissenin başlangıç ve bitiş fiyatını bul
+        const year = new Date().getFullYear()
+        const monthStart = new Date(year, monthIdx, 1).getTime()
+        const monthEnd = new Date(year, monthIdx + 1, 0).getTime()
+        const monthPrices = arr.filter(p => {
+          const d = new Date(p.date).getTime()
+          return d >= monthStart && d <= monthEnd
+        })
+        if (monthPrices.length >= 2) {
+          const firstPrice = monthPrices[0].close
+          const lastPrice = monthPrices[monthPrices.length - 1].close
+          totalChange += ((lastPrice - firstPrice) / firstPrice) * 100
+          count++
+        }
+      })
+      return count > 0 ? totalChange / count : 0
+    })
+    return labels.map((month, i) => ({ month, change: parseFloat(monthlyChanges[i].toFixed(2)) }))
+  }, [prices, filteredTickers])
 
   // Madde 15: Cumulative data
   const cumulativeData = useMemo(() => {
@@ -150,15 +177,59 @@ const Dashboard = () => {
     return data
   }, [prices, filteredTickers])
 
-  // Madde 16: Radar data
+  // Madde 16: Radar data (gerçek fiyat verisinden hesaplanır)
   const radarData = useMemo(() => {
     const subjects = ['Volatilite', 'Ort. Getiri', 'Max Kazanç', 'Tutarlılık', 'Sharpe']
+    if (filteredTickers.length === 0) {
+      return subjects.map(subject => ({ subject }))
+    }
     return subjects.map(subject => {
       const point = { subject }
-      filteredTickers.forEach(t => { point[t] = Math.round(Math.random() * 80 + 20) })
+      filteredTickers.forEach(t => {
+        const arr = prices[t]
+        if (!arr || arr.length < 2) {
+          point[t] = 0
+          return
+        }
+        const returns = arr.slice(1).map((p, i) => (p.close - arr[i].close) / arr[i].close)
+        switch (subject) {
+          case 'Volatilite': {
+            const mean = returns.reduce((a, b) => a + b, 0) / returns.length
+            const variance = returns.reduce((s, r) => s + (r - mean) ** 2, 0) / returns.length
+            const vol = Math.sqrt(variance) * Math.sqrt(252) * 100
+            point[t] = Math.min(100, Math.round(vol))
+            break
+          }
+          case 'Ort. Getiri': {
+            const avgReturn = (returns.reduce((a, b) => a + b, 0) / returns.length) * 100
+            point[t] = Math.min(100, Math.max(0, Math.round(avgReturn * 10 + 50)))
+            break
+          }
+          case 'Max Kazanç': {
+            const maxGain = Math.max(...returns) * 100
+            point[t] = Math.min(100, Math.max(0, Math.round(maxGain * 5 + 50)))
+            break
+          }
+          case 'Tutarlılık': {
+            const posDays = returns.filter(r => r > 0).length
+            const consistency = (posDays / returns.length) * 100
+            point[t] = Math.round(consistency)
+            break
+          }
+          case 'Sharpe': {
+            const mean = returns.reduce((a, b) => a + b, 0) / returns.length
+            const std = Math.sqrt(returns.reduce((s, r) => s + (r - mean) ** 2, 0) / returns.length)
+            const sharpe = std > 0 ? (mean / std) * Math.sqrt(252) : 0
+            point[t] = Math.min(100, Math.max(0, Math.round(sharpe * 20 + 50)))
+            break
+          }
+          default:
+            point[t] = 50
+        }
+      })
       return point
     })
-  }, [filteredTickers])
+  }, [prices, filteredTickers])
 
   // Madde 38: Risk score
   const riskScore = useMemo(() => {

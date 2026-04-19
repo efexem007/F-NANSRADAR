@@ -28,7 +28,7 @@ import analysisRoutes   from './routes/analysis.js';
 import adminCacheRoutes from './routes/admin/cache.js';
 import batchRoutes      from './routes/batch.js';
 
-import { defaultLimiter, authLimiter, stockLimiter, scanLimiter, macroLimiter, reportLimiter, universalLimiter } from './middleware/smartRateLimit.js';
+import { defaultLimiter, authLimiter, stockLimiter, scanLimiter, macroLimiter, reportLimiter, universalLimiter, portfolioLimiter, watchlistLimiter } from './middleware/smartRateLimit.js';
 import { errorHandler, notFoundHandler } from './middleware/errorHandler.js';
 import { httpLogger } from './lib/logger.js';
 import logger from './lib/logger.js';
@@ -69,7 +69,7 @@ app.use(defaultLimiter);
 
 // ─── Routes (endpoint bazlı rate limit) ──────────────────────────────────
 app.use('/api/auth',      authLimiter,      authRoutes);
-app.use('/api/portfolio',                   portfolioRoutes);
+app.use('/api/portfolio', portfolioLimiter, portfolioRoutes);
 app.use('/api/stock',     stockLimiter,     stockRoutes);
 app.use('/api/signal',                      signalRoutes);
 app.use('/api/sync',                        syncRoutes);
@@ -79,7 +79,7 @@ app.use('/api/report',    reportLimiter,    reportRoutes);
 app.use('/api/backtest',                    backtestRoutes);
 app.use('/api/scan',      scanLimiter,      scanRoutes);
 app.use('/api/universal', universalLimiter, universalRoutes);
-app.use('/api/watchlist',                   watchlistRoutes);
+app.use('/api/watchlist', watchlistLimiter, watchlistRoutes);
 
 app.use('/api/ai',                          aiRoutes);
 app.use('/api/prediction',                  predictionRoutes);

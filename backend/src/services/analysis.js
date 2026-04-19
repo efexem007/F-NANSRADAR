@@ -211,8 +211,10 @@ _Hissedeki Durum:_ En yakın Destek: **${sr.closestSupport || 'Yok'} TL** | En y
   
   // 3. Toplam Analiz Özeti ve Puan
   lines.push(`🛡️ **GENEL RİSK VE MAKRO FAKTÖRLER**`);
-  lines.push(`Bu hisseyi etkileyen dış faktörlere bakıldığında; Türkiye CDS risk primleri (${macroData.cds} bps) ve Küresel VIX Korku Endeksi (${macroData.vix}) baz alındığında sistemimiz piyasa geneli için ${macroData.cds > 300 ? 'belirli makro riskler seziyor' : 'olumlu, sakin bir makro çevre tespit etmiştir'}.`);
-  if (priceImpact) {
+  const cdsValue = macroData?.cds ?? '—';
+  const vixValue = macroData?.vix ?? '—';
+  lines.push(`Bu hisseyi etkileyen dış faktörlere bakıldığında; Türkiye CDS risk primleri (${cdsValue} bps) ve Küresel VIX Korku Endeksi (${vixValue}) baz alındığında sistemimiz piyasa geneli için ${(macroData?.cds ?? 0) > 300 ? 'belirli makro riskler seziyor' : 'olumlu, sakin bir makro çevre tespit etmiştir'}.`);
+  if (priceImpact && priceImpact.fairValue != null) {
       lines.push(`\n💡 **Nihai Model Çıktısı:** Bu değişkenler ışığında hissenin ideal / adil değerinin **${priceImpact.fairValue.toFixed(2)} TL** olabileceği hesaplanmış olup, toplam formül etkimiz fiyat yönünde **${priceImpact.totalImpactPct > 0 ? '+' : ''}${priceImpact.totalImpactPct}%** olarak saptanmıştır.`);
   }
 

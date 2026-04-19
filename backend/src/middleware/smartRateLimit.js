@@ -12,6 +12,8 @@ const LIMITS = {
   universal: { windowMs: 1 * 60 * 1000, max: 500,  message: 'Universal tarama limiti aşıldı' },
   macro:     { windowMs: 1 * 60 * 1000, max: 1000, message: 'Makro veri limiti aşıldı' },
   report:    { windowMs: 1 * 60 * 1000, max: 500,  message: 'Rapor oluşturma limiti aşıldı' },
+  portfolio: { windowMs: 1 * 60 * 1000, max: 2000, message: 'Portföy API limiti aşıldı' },
+  watchlist: { windowMs: 1 * 60 * 1000, max: 2000, message: 'Watchlist API limiti aşıldı' },
   default:   { windowMs: 1 * 60 * 1000, max: 5000, message: 'İstek limiti aşıldı' },
 };
 
@@ -38,4 +40,6 @@ export const scanLimiter      = makeLimit(LIMITS.scan);
 export const universalLimiter = makeLimit(LIMITS.universal);
 export const macroLimiter     = makeLimit(LIMITS.macro);
 export const reportLimiter    = makeLimit(LIMITS.report);
+export const portfolioLimiter = makeLimit(LIMITS.portfolio);
+export const watchlistLimiter = makeLimit(LIMITS.watchlist);
 export const defaultLimiter   = makeLimit(LIMITS.default);

@@ -2,9 +2,15 @@ import bcrypt from 'bcrypt';
 import jwt from 'jsonwebtoken';
 import prisma from '../lib/prisma.js';
 
+// JWT_SECRET kontrolü - production'da kesinlikle env'den alınmalı
+if (!process.env.JWT_SECRET && process.env.NODE_ENV === 'production') {
+  throw new Error('JWT_SECRET ortam değişkeni production ortamında zorunludur!');
+}
+
 const JWT_SECRET = process.env.JWT_SECRET || 'f1n4nsR4d4r!v5.2_S3cur3Auth:K3y-9a8b7c6d5e4f3g2h1xYz88vL';
 
-export const hashPassword = async (password) => bcrypt.hash(password, 10);
+// bcrypt round sayısını 12'ye çıkar (OWASP önerisi: 10+ rounds)
+export const hashPassword = async (password) => bcrypt.hash(password, 12);
 export const comparePassword = async (password, hash) => bcrypt.compare(password, hash);
 export const generateToken = (userId) => jwt.sign({ userId }, JWT_SECRET, { expiresIn: '7d' });
 export const verifyToken = (token) => { try { return jwt.verify(token, JWT_SECRET); } catch { return null; } };

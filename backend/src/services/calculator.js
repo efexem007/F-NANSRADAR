@@ -1,21 +1,46 @@
 export const calculateRatios = (fundamental, currentPrice, sharesOutstanding) => {
+  // fundamental objesi null/undefined ise tüm değerleri null döndür
+  if (!fundamental || typeof fundamental !== 'object') {
+    return {
+      currentRatio: null, acidTest: null, grossMargin: null,
+      netMargin: null, leverage: null, nfbToEbitda: null, fk: null, pddd: null
+    };
+  }
+
   const { currentAssets, currentLiabilities, inventory, totalAssets, equity, netSales, grossProfit, ebitda, netProfit, netFinancialDebt } = fundamental;
-  const currentRatio = currentLiabilities ? currentAssets / currentLiabilities : null;
-  const acidTest = currentLiabilities ? (currentAssets - (inventory || 0)) / currentLiabilities : null;
-  const grossMargin = netSales ? (grossProfit / netSales) * 100 : null;
-  const netMargin = netSales ? (netProfit / netSales) * 100 : null;
-  const leverage = equity ? totalAssets / equity : null;
-  const nfbToEbitda = ebitda ? (netFinancialDebt || 0) / ebitda : null;
-  const fk = (currentPrice && sharesOutstanding && netProfit) ? (currentPrice * sharesOutstanding) / netProfit : null;
-  const pddd = (currentPrice && sharesOutstanding && equity) ? (currentPrice * sharesOutstanding) / equity : null;
+
+  // Sıfır bölme koruması ve null kontrolü
+  const safeDiv = (num, den) => {
+    if (num == null || den == null || den === 0 || isNaN(num) || isNaN(den)) return null;
+    return num / den;
+  };
+
+  const currentRatio = safeDiv(currentAssets, currentLiabilities);
+  const acidTest = currentLiabilities
+    ? safeDiv((currentAssets || 0) - (inventory || 0), currentLiabilities)
+    : null;
+  const grossMargin = netSales != null ? safeDiv(grossProfit, netSales) * 100 : null;
+  const netMargin = netSales != null ? safeDiv(netProfit, netSales) * 100 : null;
+  const leverage = safeDiv(totalAssets, equity);
+  const nfbToEbitda = safeDiv(netFinancialDebt || 0, ebitda);
+  const fk = (currentPrice != null && sharesOutstanding != null && netProfit != null)
+    ? safeDiv(currentPrice * sharesOutstanding, netProfit) : null;
+  const pddd = (currentPrice != null && sharesOutstanding != null && equity != null)
+    ? safeDiv(currentPrice * sharesOutstanding, equity) : null;
+
+  const safeFixed = (val) => {
+    if (val == null || isNaN(val) || !isFinite(val)) return null;
+    return parseFloat(val.toFixed(2));
+  };
+
   return {
-    currentRatio: currentRatio !== null ? parseFloat(currentRatio.toFixed(2)) : null,
-    acidTest: acidTest !== null ? parseFloat(acidTest.toFixed(2)) : null,
-    grossMargin: grossMargin !== null ? parseFloat(grossMargin.toFixed(2)) : null,
-    netMargin: netMargin !== null ? parseFloat(netMargin.toFixed(2)) : null,
-    leverage: leverage !== null ? parseFloat(leverage.toFixed(2)) : null,
-    nfbToEbitda: nfbToEbitda !== null ? parseFloat(nfbToEbitda.toFixed(2)) : null,
-    fk: fk !== null ? parseFloat(fk.toFixed(2)) : null,
-    pddd: pddd !== null ? parseFloat(pddd.toFixed(2)) : null
+    currentRatio: safeFixed(currentRatio),
+    acidTest: safeFixed(acidTest),
+    grossMargin: safeFixed(grossMargin),
+    netMargin: safeFixed(netMargin),
+    leverage: safeFixed(leverage),
+    nfbToEbitda: safeFixed(nfbToEbitda),
+    fk: safeFixed(fk),
+    pddd: safeFixed(pddd)
   };
 };
