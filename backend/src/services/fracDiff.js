@@ -66,7 +66,7 @@ export function findOptimalD(closes, threshold = 1e-5) {
  * Formül yorumu: ΔW_n > 0 = alış baskısı
  */
 export function calcOFI(priceData) {
-  if (priceData.length < 5) return { ofi: 0, status: 'veri yok', trend: 'nötr' };
+  if (priceData.length < 5) return { ofi: 0, status: 'veri yok', trend: 'nötr', score: 50, comment: 'Yeterli veri yok.' };
   
   const recent = priceData.slice(-10);
   let buyVol = 0, sellVol = 0;

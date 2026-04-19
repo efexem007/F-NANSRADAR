@@ -50,10 +50,10 @@ const Signals = () => {
           scannerResults = parsed.results.map(r => ({
              ticker: r.symbol?.replace('.IS', '') || 'UNKNOWN',
              signal: r.signal || r.signals?.final?.signal || 'BEKLE',
-             score: r.score || r.signals?.final?.score || 50,
+             score: r.score || r.opportunityScore || r.opportunity_score || r.signals?.final?.score || 50,
              price: r.currentPrice || r.live?.price || 0,
              rsi: r.indicators?.rsi || r.technical?.rsi?.val || null,
-             macdHist: r.indicators?.macdHist || r.technical?.macd?.hist || null,
+             macdHist: r.indicators?.macdHist || r.indicators?.macd?.hist || r.technical?.macd?.hist || null,
              regime: r.regime || r.analysis?.regime?.name || 'Sakin',
              createdAt: r.timestamp || new Date().toISOString()
           }));
