@@ -133,8 +133,8 @@ export function predictWeekly(priceData, days = 7) {
     }
   }
 
-  // Final fiyatlar
-  const finalPrices = allPaths.map(p => p[p.length - 1]).sort((a, b) => a - b);
+  // Final fiyatlar (duplicate declaration fixed)
+  const sortedFinalPrices = allPaths.map(p => p[p.length - 1]).sort((a, b) => a - b);
 
   // Günlük tahminler (tüm simülasyonlardan percentiller)
   const dailyPredictions = [];
@@ -166,7 +166,7 @@ export function predictWeekly(priceData, days = 7) {
     });
   }
 
-  const medianFinal = finalPrices[Math.floor(n * 0.50)];
+  const medianFinal = sortedFinalPrices[Math.floor(n * 0.50)];
   const changePct = ((medianFinal - currentPrice) / currentPrice) * 100;
 
   return {
@@ -177,13 +177,13 @@ export function predictWeekly(priceData, days = 7) {
     target: parseFloat(medianFinal.toFixed(2)),
     changePct: parseFloat(changePct.toFixed(2)),
     range: {
-      lower5: parseFloat(finalPrices[Math.floor(n * 0.05)].toFixed(2)),
-      lower25: parseFloat(finalPrices[Math.floor(n * 0.25)].toFixed(2)),
+      lower5: parseFloat(sortedFinalPrices[Math.floor(n * 0.05)].toFixed(2)),
+      lower25: parseFloat(sortedFinalPrices[Math.floor(n * 0.25)].toFixed(2)),
       median: parseFloat(medianFinal.toFixed(2)),
-      upper75: parseFloat(finalPrices[Math.floor(n * 0.75)].toFixed(2)),
-      upper95: parseFloat(finalPrices[Math.floor(n * 0.95)].toFixed(2)),
+      upper75: parseFloat(sortedFinalPrices[Math.floor(n * 0.75)].toFixed(2)),
+      upper95: parseFloat(sortedFinalPrices[Math.floor(n * 0.95)].toFixed(2)),
     },
-    probabilityUp: parseFloat(((finalPrices.filter(p => p > currentPrice).length / n) * 100).toFixed(1)),
+    probabilityUp: parseFloat(((sortedFinalPrices.filter(p => p > currentPrice).length / n) * 100).toFixed(1)),
     confidence: parseFloat(Math.max(0, Math.min(100, 100 - Math.abs(changePct) * 1.5)).toFixed(1)),
     momentum: { rsi: parseFloat(rsi.toFixed(1)), zScore: parseFloat(zScore.toFixed(2)), driftBias: parseFloat(driftBias.toFixed(5)) },
     dailyPredictions,
