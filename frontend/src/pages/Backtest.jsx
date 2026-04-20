@@ -15,10 +15,10 @@ export default function Backtest() {
   const [stopLoss, setStopLoss] = useState(8);
   const [takeProfit, setTakeProfit] = useState(15);
   const [loading, setLoading] = useState(false);
-  const [forecastData, setForecastData] = useState(null);
+  const [forecastData, setForecastData] = useState([]);
   const [backtestResult, setBacktestResult] = useState(null);
   const [riskMetrics, setRiskMetrics] = useState(null);
-  const [accuracyData, setAccuracyData] = useState(null);
+  const [accuracyData, setAccuracyData] = useState([]);
 
   const handleSearch = async () => {
     setLoading(true);
@@ -33,10 +33,45 @@ export default function Backtest() {
         params: { lookbackDays: 365 }
       });
 
-      setForecastData(forecastRes.data.data?.horizons ? Object.values(forecastRes.data.data.horizons) : []);
+      // Transform horizon forecast data
+      const horizons = forecastRes.data.data?.horizons;
+      if (horizons) {
+        const transformedForecast = Object.entries(horizons).map(([key, h]) => ({
+          key,
+          label: h.horizon,
+          price: h.forecast.price.p50,
+          p5: h.forecast.price.p5,
+          p95: h.forecast.price.p95,
+          probUp: h.probabilities.up,
+          probDown: h.probabilities.down5pct,
+          signal: h.signal
+        }));
+        setForecastData(transformedForecast);
+      } else {
+        setForecastData([]);
+      }
+
       setBacktestResult(backtestRes.data.data);
       setRiskMetrics(riskRes.data.data);
-      setAccuracyData(accuracyRes.data.data);
+
+      // Transform accuracy data
+      const accuracy = accuracyRes.data.data;
+      if (accuracy && accuracy.bySignalType) {
+        const transformedAcc = [
+          { signalType: 'GÜÇLÜ AL', ...accuracy.bySignalType.strongBuy },
+          { signalType: 'AL', ...accuracy.bySignalType.buy },
+          { signalType: 'SAT', ...accuracy.bySignalType.sell }
+        ].map(item => ({
+          signalType: item.signalType,
+          accuracy1g: item.accuracy1g,
+          accuracy5g: item.accuracy5g,
+          accuracy21g: item.accuracy21g
+        }));
+        setAccuracyData(transformedAcc);
+      } else {
+        setAccuracyData([]);
+      }
+
       setLoading(false);
     } catch (err) {
       console.error(err);
@@ -44,7 +79,7 @@ export default function Backtest() {
       setForecastData([]);
       setBacktestResult({});
       setRiskMetrics({});
-      setAccuracyData({});
+      setAccuracyData([]);
       setLoading(false);
     }
   };
