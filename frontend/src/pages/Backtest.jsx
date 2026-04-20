@@ -5,7 +5,7 @@ import { Button } from '../components/ui/Button.jsx';
 import HorizonForecastChart from '../components/charts/HorizonForecastChart.jsx';
 import BacktestEquityCurve from '../components/charts/BacktestEquityCurve.jsx';
 import SignalAccuracyChart from '../components/charts/SignalAccuracyChart.jsx';
-import { fetchStockPrices } from '../services/yahooFinance.js';
+import client from '../api/client';
 
 export default function Backtest() {
   const { symbol: paramSymbol } = useParams();
@@ -24,18 +24,27 @@ export default function Backtest() {
     setLoading(true);
     try {
       // Tahmin verilerini çek
-      const priceData = await fetchStockPrices(symbol, '1y', '1d');
-      // Burada API çağrıları yapılacak (simüle)
-      // Örnek veri set
-      setTimeout(() => {
-        setForecastData([]); // boş
-        setBacktestResult({});
-        setRiskMetrics({});
-        setAccuracyData({});
-        setLoading(false);
-      }, 500);
+      const forecastRes = await client.get(`/backtest/${symbol}/full`);
+      const backtestRes = await client.get(`/backtest/${symbol}/backtest`, {
+        params: { period, holdingPeriod, stopLoss: stopLoss / 100, takeProfit: takeProfit / 100 }
+      });
+      const riskRes = await client.get(`/backtest/${symbol}/risk`);
+      const accuracyRes = await client.get(`/backtest/${symbol}/accuracy`, {
+        params: { lookbackDays: 365 }
+      });
+
+      setForecastData(forecastRes.data.data?.horizons ? Object.values(forecastRes.data.data.horizons) : []);
+      setBacktestResult(backtestRes.data.data);
+      setRiskMetrics(riskRes.data.data);
+      setAccuracyData(accuracyRes.data.data);
+      setLoading(false);
     } catch (err) {
       console.error(err);
+      // Fallback to sample data
+      setForecastData([]);
+      setBacktestResult({});
+      setRiskMetrics({});
+      setAccuracyData({});
       setLoading(false);
     }
   };
