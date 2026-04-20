@@ -238,3 +238,20 @@ model StockAnalysis {
   
   @@map("stock_analyses")
 }
+model MonteCarloResult {
+  id              Int      @id @default(autoincrement())
+  symbol          String
+  method          String   // monte_carlo_mjd_garch
+  days            Int
+  simulations     Int
+  currentPrice    Float
+  predictedPrice  Float
+  confidenceP5    Float
+  confidenceP25   Float
+  confidenceP75   Float
+  confidenceP95   Float
+  modelParams     Json?    // {jumpIntensity, jumpMean, garch: {...}}
+  createdAt       DateTime @default(now())
+
+  @@index([symbol, createdAt])
+}
