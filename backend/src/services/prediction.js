@@ -12,6 +12,8 @@
  *   Momentum: RSI + MACD Histogram yönü
  */
 
+import { GARCHModel } from './volatilityModel.js';
+
 /**
  * Normal dağılımdan rastgele sayı (Box-Muller transform)
  */
