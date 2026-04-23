@@ -23,6 +23,13 @@ function makeLimit(config) {
     max: config.max,
     standardHeaders: true,
     legacyHeaders: false,
+    skip: (req) => {
+      // SSE endpoint'lerini rate limit'ten muaf tut
+      if (req.path && (req.path.includes('/scan-all') || req.path.includes('/signal/scan-all'))) {
+        return true;
+      }
+      return false;
+    },
     handler: (req, res) => {
       res.status(429).json({
         success: false,
