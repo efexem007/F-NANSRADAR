@@ -1,5 +1,3 @@
-import React from 'react';
-import { Card } from '../ui/Card.jsx';
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, LabelList } from 'recharts';
 
 const horizonDataExample = [
@@ -36,23 +34,23 @@ export default function HorizonForecastChart({ data = horizonDataExample }) {
                 {item.signal}
               </span>
             </div>
-            <div className="text-2xl font-bold text-white">{item.price.toFixed(2)}</div>
+            <div className="text-2xl font-bold text-white">{typeof item.price === 'number' ? item.price.toFixed(2) : '0.00'}</div>
             <div className="text-sm text-slate-400 mt-1">
-              %{item.probUp} Yukarı / %{item.probDown} Aşağı
+              %{item.probUp || 0} Yukarı / %{item.probDown || 0} Aşağı
             </div>
             <div className="mt-3">
               <div className="text-xs text-slate-500">Güven Aralığı</div>
               <div className="flex items-center justify-between text-sm">
-                <span className="text-slate-300">{item.p5.toFixed(1)}</span>
+                <span className="text-slate-300">{typeof item.p5 === 'number' ? item.p5.toFixed(1) : '0.0'}</span>
                 <span className="text-slate-400">-</span>
-                <span className="text-slate-300">{item.p95.toFixed(1)}</span>
+                <span className="text-slate-300">{typeof item.p95 === 'number' ? item.p95.toFixed(1) : '0.0'}</span>
               </div>
             </div>
             {/* Mini bar chart */}
             <div className="mt-4">
               <ResponsiveContainer width="100%" height={40}>
                 <BarChart data={[item]} layout="vertical">
-                  <XAxis type="number" hide domain={[item.p5, item.p95]} />
+                  <XAxis type="number" hide domain={[typeof item.p5 === 'number' ? item.p5 : 0, typeof item.p95 === 'number' ? item.p95 : 0]} />
                   <YAxis type="category" hide />
                   <Bar dataKey="price" fill={getSignalColor(item.signal)} radius={3} barSize={20}>
                     <LabelList dataKey="price" position="insideRight" fill="#fff" fontSize={10} />

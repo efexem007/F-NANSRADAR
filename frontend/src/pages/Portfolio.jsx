@@ -59,6 +59,16 @@ const Portfolio = () => {
     XLSX.writeFile(wb, `portfoy_${new Date().toLocaleDateString('tr-TR')}.xlsx`)
   }
 
+  // Türkçe karakterleri ASCII karşılıklarına çevir (jspdf Türkçe font desteği yok)
+  const trToAscii = (str) => {
+    if (!str) return '';
+    const map = {
+      'ı': 'i', 'ğ': 'g', 'ü': 'u', 'ş': 's', 'ö': 'o', 'ç': 'c',
+      'İ': 'I', 'Ğ': 'G', 'Ü': 'U', 'Ş': 'S', 'Ö': 'O', 'Ç': 'C',
+    };
+    return str.replace(/[ığüşöçİĞÜŞÖÇ]/g, ch => map[ch] || ch);
+  };
+
   // Phase 4: Kapsamlı Portföy Raporu (PDF)
   const exportToPDF = () => {
     const doc = new jsPDF()
@@ -67,7 +77,7 @@ const Portfolio = () => {
     // Header
     doc.setFontSize(22)
     doc.setTextColor(139, 92, 246) // Purple color
-    doc.text('FinansRadar - Portfoy Raporu', 14, 20)
+    doc.text(trToAscii('FinansRadar - Portföy Raporu'), 14, 20)
     
     doc.setFontSize(11)
     doc.setTextColor(100)
@@ -76,15 +86,15 @@ const Portfolio = () => {
     // Summary Data
     doc.setFontSize(12)
     doc.setTextColor(0)
-    doc.text(`Toplam Maliyet: ${formatCurrency(summary.totalCost || 0)}`, 14, 40)
-    doc.text(`Guncel Deger: ${formatCurrency(summary.totalValue || 0)}`, 14, 47)
+    doc.text(trToAscii(`Toplam Maliyet: ${formatCurrency(summary.totalCost || 0)}`), 14, 40)
+    doc.text(trToAscii(`Güncel Değer: ${formatCurrency(summary.totalValue || 0)}`), 14, 47)
     
     const isProfit = (summary.totalPL || 0) >= 0
     doc.setTextColor(isProfit ? 22 : 220, isProfit ? 163 : 38, isProfit ? 74 : 38) // Green or Red
-    doc.text(`Net K/Z: ${isProfit ? '+' : ''}${formatCurrency(summary.totalPL || 0)}  (%${formatPercent(summary.totalPLPercent || 0)})`, 14, 54)
+    doc.text(trToAscii(`Net K/Z: ${isProfit ? '+' : ''}${formatCurrency(summary.totalPL || 0)}  (%${formatPercent(summary.totalPLPercent || 0)})`), 14, 54)
 
     // Table Data
-    const tableColumn = ["Hisse", "Adet", "Ort. Maliyet", "Guncel Fiyat", "Toplam Deger", "Net K/Z"]
+    const tableColumn = trToAscii(["Hisse", "Adet", "Ort. Maliyet", "Güncel Fiyat", "Toplam Değer", "Net K/Z"])
     const tableRows = []
 
     data.items?.forEach(item => {
@@ -110,7 +120,7 @@ const Portfolio = () => {
     
     doc.setFontSize(10)
     doc.setTextColor(150)
-    doc.text('Yapay Zeka Destekli FinansRadar Tarafindan Olusturulmustur.', 14, doc.lastAutoTable.finalY + 15)
+    doc.text(trToAscii('Yapay Zeka Destekli FinansRadar Tarafından Oluşturulmuştur.'), 14, doc.lastAutoTable.finalY + 15)
 
     doc.save(`portfoy_raporu_${dateStr}.pdf`)
   }

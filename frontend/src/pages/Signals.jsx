@@ -99,7 +99,7 @@ const Signals = () => {
     }
 
     const token = localStorage.getItem('token');
-    const url = `http://localhost:3001/api/signal/scan-all${token ? `?token=${token}` : ''}`;
+    const url = `/api/signal/scan-all${token ? `?token=${token}` : ''}`;
 
     const es = new EventSource(url);
     eventSourceRef.current = es;

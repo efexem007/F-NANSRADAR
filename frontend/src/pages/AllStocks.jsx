@@ -151,7 +151,8 @@ export default function AllStocks() {
   const navigate = useNavigate();
   const [stocks, setStocks] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [pagination, setPagination] = useState({ page: 1, pageSize: 50, total: 0, totalPages: 1 });
+  const [pagination, setPagination] = useState({ page: 1, pageSize: 48, total: 0, totalPages: 1, hasPrev: false, hasNext: false });
+  const [pageSize, setPageSize] = useState(48);
   const [filters, setFilters] = useState({ availableSectors: [], availableTypes: [] });
   const [viewMode, setViewMode] = useState('table'); // 'table' | 'grid'
   const [searchQuery, setSearchQuery] = useState('');
@@ -164,13 +165,15 @@ export default function AllStocks() {
   const [showFilters, setShowFilters] = useState(false);
   const [stats, setStats] = useState(null);
 
+  // ────────────────────────────────────────────────
   // Fetch stocks
+  // ────────────────────────────────────────────────
   const fetchStocks = useCallback(async (page = 1) => {
     setLoading(true);
     try {
       const params = new URLSearchParams({
         page: page.toString(),
-        pageSize: '48',
+        pageSize: pageSize.toString(),
         sortBy,
         sortOrder,
         type: 'bist',
@@ -179,25 +182,49 @@ export default function AllStocks() {
       if (selectedIndex) params.set('indexFilter', selectedIndex);
 
       const { data } = await client.get(`/stock/list?${params}`);
-      setStocks(data.data || []);
-      setPagination(data.pagination || { page: 1, pageSize: 48, total: 0, totalPages: 1 });
+      const stocksData = data.data || data.stocks || data.items || [];
+      setStocks(stocksData);
+      const pg = data.pagination || {};
+      setPagination({
+        page: pg.page || page,
+        pageSize: pg.pageSize || pageSize,
+        total: pg.total || 0,
+        totalPages: pg.totalPages || 1,
+        hasPrev: pg.hasPrev ?? (page > 1),
+        hasNext: pg.hasNext ?? (page < (pg.totalPages || 1)),
+      });
       if (data.filters) setFilters(data.filters);
     } catch (err) {
       toast.error('Hisse listesi yüklenemedi');
     }
     setLoading(false);
-  }, [sortBy, sortOrder, selectedSector, selectedIndex]);
+  }, [sortBy, sortOrder, selectedSector, selectedIndex, pageSize]);
 
-  // Fetch stats
+  // ────────────────────────────────────────────────
+  // Fetch stats (sadece bir kere)
+  // ────────────────────────────────────────────────
   useEffect(() => {
     client.get('/stock/stats').then(({ data }) => setStats(data)).catch(() => {});
   }, []);
 
+  // ────────────────────────────────────────────────
+  // Fetch stocks when filter/sort deps change — always reset to page 1
+  // ────────────────────────────────────────────────
   useEffect(() => {
-    fetchStocks(pagination.page);
+    fetchStocks(1);
   }, [fetchStocks]);
 
-  // Search
+  // ────────────────────────────────────────────────
+  // Sayfa boyutu değişince sayfa 1'e dön ve yeniden yükle
+  // ────────────────────────────────────────────────
+  useEffect(() => {
+    fetchStocks(1);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pageSize]);
+
+  // ────────────────────────────────────────────────
+  // Search with debounce
+  // ────────────────────────────────────────────────
   useEffect(() => {
     if (!searchQuery || searchQuery.length < 2) {
       setSearchResults(null);
@@ -420,13 +447,30 @@ export default function AllStocks() {
 
       {/* Pagination */}
       {!searchResults && pagination.totalPages > 1 && (
-        <div className="flex items-center justify-between">
-          <div className="text-[10px] text-slate-500">
-            Sayfa {pagination.page} / {pagination.totalPages} • Toplam {pagination.total} hisse
+        <div className="flex items-center justify-between flex-wrap gap-3">
+          <div className="flex items-center gap-3">
+            <div className="text-[10px] text-slate-500">
+              Sayfa {pagination.page} / {pagination.totalPages} • Toplam {pagination.total} hisse
+            </div>
+            {/* Page Size Selector */}
+            <div className="flex items-center gap-1.5">
+              <span className="text-[10px] text-slate-500">Göster:</span>
+              <select
+                value={pageSize}
+                onChange={e => { setPageSize(Number(e.target.value)); }}
+                className="bg-white/5 border border-white/10 rounded-lg px-2 py-1 text-[10px] text-slate-300 focus:outline-none focus:ring-1 focus:ring-purple-500/50"
+              >
+                <option value={24}>24</option>
+                <option value={48}>48</option>
+                <option value={100}>100</option>
+                <option value={250}>250</option>
+                <option value={514}>Tümü (514)</option>
+              </select>
+            </div>
           </div>
           <div className="flex items-center gap-1.5">
             <button
-              onClick={() => fetchStocks(pagination.page - 1)}
+              onClick={() => { setPagination(p => ({ ...p, page: p.page - 1 })); fetchStocks(pagination.page - 1); }}
               disabled={!pagination.hasPrev}
               className="px-3 py-1.5 rounded-lg text-xs font-semibold border border-white/10 text-slate-400 hover:text-white hover:border-purple-500/30 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
             >
@@ -454,7 +498,7 @@ export default function AllStocks() {
             })}
 
             <button
-              onClick={() => fetchStocks(pagination.page + 1)}
+              onClick={() => { setPagination(p => ({ ...p, page: p.page + 1 })); fetchStocks(pagination.page + 1); }}
               disabled={!pagination.hasNext}
               className="px-3 py-1.5 rounded-lg text-xs font-semibold border border-white/10 text-slate-400 hover:text-white hover:border-purple-500/30 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
             >

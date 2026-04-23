@@ -89,7 +89,7 @@ const Dashboard = () => {
   // Karşılaştırma için tüm hisseleri yükle
   useEffect(() => {
     client.get('/stock/list?pageSize=500&sortBy=ticker').then(res => {
-      const stocks = Array.isArray(res.data) ? res.data : (res.data?.stocks || res.data?.items || [])
+      const stocks = res.data?.data || (Array.isArray(res.data) ? res.data : (res.data?.stocks || res.data?.items || []))
       setAllStocksForCompare(stocks)
     }).catch(() => {})
   }, [])
@@ -242,8 +242,17 @@ const Dashboard = () => {
     setTimeout(() => { setActiveStock(ticker); setTransitioning(false) }, 150)
   }
 
-  const cds = Array.isArray(macros) ? macros.find(m => m.type === 'CDS') : macros?.cds || (macros?.target ? Object.values(macros).find(m => m?.type === 'CDS') : null)
-  const vix = Array.isArray(macros) ? macros.find(m => m.type === 'VIX') : macros?.vix || (macros?.target ? Object.values(macros).find(m => m?.type === 'VIX') : null)
+  // Makro verilerini backend'den gelen formata göre çözümle
+  // Backend /macro endpoint'i { vix, usdtry, bist100, cds, interest, sp500 } şeklinde obje döndürür
+  const macroData = Array.isArray(macros)
+    ? Object.fromEntries(macros.map(m => [m.type?.toLowerCase(), m]))
+    : (macros || {})
+  const cds = macroData.cds?.value ?? macroData.cds ?? null
+  const vix = macroData.vix?.value ?? macroData.vix ?? null
+  const interest = macroData.interest?.value ?? macroData.interest ?? null
+  const usdtry = macroData.usdtry?.value ?? macroData.usdtry ?? null
+  const bist100 = macroData.bist100?.value ?? macroData.bist100 ?? null
+  const sp500 = macroData.sp500?.value ?? macroData.sp500 ?? null
 
   if (loading) {
     return (
@@ -311,8 +320,8 @@ const Dashboard = () => {
           { icon: '🚀', label: 'En Yüksek Fiyat', value: `₺${bestStock?.lastPrice?.toFixed(2) || '—'}`, sub: bestStock?.ticker },
           { icon: '📉', label: 'En Düşük Fiyat', value: `₺${worstStock?.lastPrice?.toFixed(2) || '—'}`, sub: worstStock?.ticker },
           { icon: '💰', label: 'Toplam Piyasa', value: <AnimatedNumber value={totalMarketCap / 1e12} prefix="₺" suffix="T" />, sub: `${tickers.length} hisse` },
-          { icon: '📊', label: 'CDS Spread', value: `${cds?.value || '—'} bps`, sub: 'Türkiye Riski' },
-          { icon: '⚡', label: 'VIX Endeksi', value: `${vix?.value || '—'}`, sub: 'Piyasa Volatilitesi' },
+          { icon: '📊', label: 'CDS Spread', value: `${cds || '—'} bps`, sub: 'Türkiye Riski' },
+          { icon: '⚡', label: 'VIX Endeksi', value: `${vix || '—'}`, sub: 'Piyasa Volatilitesi' },
         ].map(kpi => (
           <div key={kpi.label} className="glass-card glass-card-hover p-4">
             <div className="text-2xl mb-1">{kpi.icon}</div>
@@ -439,10 +448,10 @@ const Dashboard = () => {
 
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
           {[
-            { id: 'cds', label: 'Ülke Risk Primi (CDS)', val: macroCountry === 'TR' ? `${cds?.value || 295} bps` : macroCountry === 'US' ? '35 bps' : '65 bps', desc: 'Yabancı yatırımcı güveni', color: macroCountry === 'TR' ? 'rose' : 'emerald' },
-            { id: 'faiz', label: 'Politika Faizi', val: macroCountry === 'TR' ? '%50.00' : macroCountry === 'US' ? '%5.25' : '%4.00', desc: 'Borçlanma maliyeti', color: 'purple' },
-            { id: 'enflasyon', label: 'Enflasyon (TÜFE)', val: macroCountry === 'TR' ? '%68.5' : macroCountry === 'US' ? '%3.1' : '%2.8', desc: 'Fiyat istikrarı', color: macroCountry === 'TR' ? 'yellow' : 'cyan' },
-            { id: 'vix', label: 'Küresel Volatilite (VIX)', val: `${vix?.value || 18.2}`, desc: 'Küresel korku seviyesi', color: 'emerald' },
+            { id: 'cds', label: 'Ülke Risk Primi (CDS)', val: macroCountry === 'TR' ? `${cds || 295} bps` : macroCountry === 'US' ? '35 bps' : '65 bps', desc: 'Yabancı yatırımcı güveni', color: macroCountry === 'TR' ? 'rose' : 'emerald' },
+            { id: 'faiz', label: 'Politika Faizi', val: macroCountry === 'TR' ? `%${(interest || 50).toFixed(2)}` : macroCountry === 'US' ? '%5.25' : '%4.00', desc: 'Borçlanma maliyeti', color: 'purple' },
+            { id: 'enflasyon', label: 'Enflasyon (TÜFE)', val: macroCountry === 'TR' ? `%${(interest || 50).toFixed(1)}` : macroCountry === 'US' ? '%3.1' : '%2.8', desc: 'Fiyat istikrarı', color: macroCountry === 'TR' ? 'yellow' : 'cyan' },
+            { id: 'vix', label: 'Küresel Volatilite (VIX)', val: `${vix || 18.2}`, desc: 'Küresel korku seviyesi', color: 'emerald' },
           ].map(m => (
             <div key={m.id} className="glass-card !p-5 relative overflow-hidden group">
               <div className={`absolute top-0 right-0 w-24 h-24 bg-${m.color}-500/5 rounded-full blur-2xl group-hover:bg-${m.color}-500/10 transition-colors`}></div>

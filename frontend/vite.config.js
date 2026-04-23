@@ -8,7 +8,13 @@ export default defineConfig({
     proxy: {
       '/api': {
         target: 'http://localhost:3001',
-        changeOrigin: true
+        changeOrigin: true,
+        timeout: 300000, // 5 dakika - SSE için
+        configure: (proxy) => {
+          proxy.on('error', (err) => {
+            console.error('Proxy error:', err);
+          });
+        }
       }
     }
   }

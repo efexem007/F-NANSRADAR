@@ -39,12 +39,12 @@ export default function Backtest() {
         const transformedForecast = Object.entries(horizons).map(([key, h]) => ({
           key,
           label: h.horizon,
-          price: h.forecast.price.p50,
-          p5: h.forecast.price.p5,
-          p95: h.forecast.price.p95,
-          probUp: h.probabilities.up,
-          probDown: h.probabilities.down5pct,
-          signal: h.signal
+          price: h.forecast?.price?.p50 || 0,
+          p5: h.forecast?.price?.p5 || 0,
+          p95: h.forecast?.price?.p95 || 0,
+          probUp: h.probabilities?.up || 0,
+          probDown: h.probabilities?.down5pct || 0,
+          signal: h.signal || 'BEKLE'
         }));
         setForecastData(transformedForecast);
       } else {
@@ -58,14 +58,14 @@ export default function Backtest() {
       const accuracy = accuracyRes.data.data;
       if (accuracy && accuracy.bySignalType) {
         const transformedAcc = [
-          { signalType: 'GÜÇLÜ AL', ...accuracy.bySignalType.strongBuy },
-          { signalType: 'AL', ...accuracy.bySignalType.buy },
-          { signalType: 'SAT', ...accuracy.bySignalType.sell }
+          { signalType: 'GÜÇLÜ AL', ...(accuracy.bySignalType.strongBuy || {}) },
+          { signalType: 'AL', ...(accuracy.bySignalType.buy || {}) },
+          { signalType: 'SAT', ...(accuracy.bySignalType.sell || {}) }
         ].map(item => ({
           signalType: item.signalType,
-          accuracy1g: item.accuracy1g,
-          accuracy5g: item.accuracy5g,
-          accuracy21g: item.accuracy21g
+          accuracy1g: item.accuracy1g || 0,
+          accuracy5g: item.accuracy5g || 0,
+          accuracy21g: item.accuracy21g || 0
         }));
         setAccuracyData(transformedAcc);
       } else {
