@@ -27,6 +27,7 @@ import predictionRoutes from './routes/prediction.js';
 import analysisRoutes   from './routes/analysis.js';
 import adminCacheRoutes from './routes/admin/cache.js';
 import batchRoutes      from './routes/batch.js';
+import openaiRoutes    from './routes/openai.js';
 
 import { defaultLimiter, authLimiter, stockLimiter, scanLimiter, macroLimiter, reportLimiter, universalLimiter, portfolioLimiter, watchlistLimiter } from './middleware/smartRateLimit.js';
 import { errorHandler, notFoundHandler } from './middleware/errorHandler.js';
@@ -86,6 +87,7 @@ app.use('/api/prediction',                  predictionRoutes);
 app.use('/api/analysis',                    analysisRoutes);
 app.use('/api/admin/cache',                 adminCacheRoutes);
 app.use('/api/batch',                        batchRoutes);
+app.use('/api/openai',                      openaiRoutes);
 
 // ─── API Documentation (Swagger) ──────────────────────────────────────────
 try {
