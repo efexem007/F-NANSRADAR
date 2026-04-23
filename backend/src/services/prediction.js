@@ -17,7 +17,7 @@ import { GARCHModel } from './volatilityModel.js';
 /**
  * Normal dağılımdan rastgele sayı (Box-Muller transform)
  */
-function randn() {
+export function randn() {
   let u = 0, v = 0;
   while (u === 0) u = Math.random();
   while (v === 0) v = Math.random();
@@ -820,9 +820,15 @@ export function predictWithTimeFrame(priceData, timeFrame = '1D', horizon = 30, 
 
     let sigmaForecasts = null;
     if (useGARCH) {
-      const garch = new GARCHModel();
-      garch.fit(returns);
-      sigmaForecasts = garch.forecast(returns, adjustedDays);
+      try {
+        const garch = new GARCHModel();
+        garch.fit(returns);
+        // volatilityModel.js'deki forecast metodunu kullan
+        sigmaForecasts = garch.forecast(returns, adjustedDays);
+      } catch (error) {
+        console.warn('GARCH model uygulanamadı, standart sapma kullanılıyor:', error.message);
+        useGARCH = false;
+      }
     }
 
     const paths = simulateMJD(currentPrice, adjustedMu, adjustedSigma, adjustedDays, 5000, jumpParams);

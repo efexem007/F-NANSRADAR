@@ -3,7 +3,13 @@ import technicalAnalysis from './technicalAnalysis.js';
 import logger from '../lib/logger.js';
 import { GARCHModel } from './volatilityModel.js';
 import { calculateAdaptiveDrift } from './driftModel.js';
-import { estimateJumpParams, randn, calculateFullPercentiles, selectRepresentativePaths } from './prediction.js';
+import { 
+  estimateJumpParams, 
+  randn, 
+  calculateFullPercentiles, 
+  selectRepresentativePaths,
+  simulateMJD 
+} from './prediction.js';
 
 /**
  * Tahmin Servisi
@@ -128,9 +134,15 @@ class PredictionService {
     let sigmaForecasts;
     let garch;
     if (useGARCH) {
-      garch = new GARCHModel();
-      garch.fit(returns);
-      sigmaForecasts = garch.forecast(returns, daysAhead);
+      try {
+        garch = new GARCHModel();
+        garch.fit(returns);
+        // volatilityModel.js'deki forecast metodu returns ve stepsAhead parametrelerini alıyor
+        sigmaForecasts = garch.forecast(returns, daysAhead);
+      } catch (error) {
+        logger.warn('GARCH model uygulanamadı, standart sapma kullanılıyor:', { error: error.message });
+        useGARCH = false;
+      }
     }
 
     const jumpParams = estimateJumpParams(returns);
@@ -141,7 +153,9 @@ class PredictionService {
       const path = [price];
 
       for (let d = 0; d < daysAhead; d++) {
-        const sigma = useGARCH ? sigmaForecasts[d] : Math.sqrt(returns.reduce((a, b) => a + (b - meanReturn) ** 2, 0) / returns.length);
+        // GARCH tahmini varsa onu kullan, yoksa tarihsel volatiliteyi kullan
+        const sigma = useGARCH && sigmaForecasts ? sigmaForecasts[d] : 
+                     Math.sqrt(returns.reduce((a, b) => a + (b - meanReturn) ** 2, 0) / returns.length);
         const dW = randn() * Math.sqrt(1 / 252);
         const diffusion = (meanReturn - 0.5 * sigma * sigma) * (1 / 252) + sigma * dW;
         const jumpOccur = Math.random() < jumpParams.jumpIntensity;
@@ -182,7 +196,8 @@ class PredictionService {
       modelParams: {
         jumpIntensity: jumpParams.jumpIntensity,
         jumpMean: jumpParams.jumpMean,
-        garch: useGARCH ? { omega: garch.omega, alpha: garch.alpha, beta: garch.beta } : null
+        jumpStd: jumpParams.jumpStd,
+        garch: useGARCH ? { omega: garch?.omega, alpha: garch?.alpha, beta: garch?.beta } : null
       }
     };
   }

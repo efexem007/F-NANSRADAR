@@ -81,16 +81,30 @@ export const ASSET_UNIVERSES = {
 // SINGLE ASSET ANALYZER (Universal)
 // ═══════════════════════════════════════════════════════════════════════════
 
-export async function analyzeAsset(symbol, name, assetType) {
+// timeFrame → Yahoo Finance period/interval mapping
+const TIME_FRAME_MAP = {
+  '1H':  { period: '5d',  interval: '1h',  days: 5 },
+  '4H':  { period: '1mo', interval: '1h',  days: 30 },
+  '1D':  { period: '3mo', interval: '1d',  days: 90 },
+  '1W':  { period: '6mo', interval: '1d',  days: 180 },
+  '1M':  { period: '1y',  interval: '1d',  days: 365 },
+  '3M':  { period: '1y',  interval: '1d',  days: 365 },
+  '6M':  { period: '2y',  interval: '1d',  days: 730 },
+  '1Y':  { period: '2y',  interval: '1d',  days: 730 },
+};
+
+export async function analyzeAsset(symbol, name, assetType, filters = {}) {
+  const { timeFrame = '1D' } = filters;
+  const tfConfig = TIME_FRAME_MAP[timeFrame] || TIME_FRAME_MAP['1D'];
+
   // Yahoo Finance'den veri çek (suffix yok, sembol kendi içinde IS vs suffix taşıyor)
   const isISStock = symbol.endsWith('.IS') || assetType === 'bist';
-  const fetchSymbol = isISStock && !symbol.endsWith('.IS') ? symbol : symbol;
   
   let priceData, currentPrice;
   try {
     if (assetType === 'bist' && !symbol.endsWith('.IS')) {
       // BIST hisseler: mevcut fetchStockPrices
-      const result = await fetchStockPrices(symbol, '3mo');
+      const result = await fetchStockPrices(symbol, tfConfig.period, tfConfig.interval);
       priceData = result.priceData;
       currentPrice = result.currentPrice;
     } else {
@@ -100,14 +114,15 @@ export async function analyzeAsset(symbol, name, assetType) {
       const yahoo = typeof YahooFinance === 'function' ? new YahooFinance({ suppressNotices: ['yahooSurvey'] }) : YahooFinance;
       
       // historical API daha güvenilir
-      const period1 = new Date(Date.now() - 90*24*60*60*1000);
+      const period1 = new Date(Date.now() - tfConfig.days * 24 * 60 * 60 * 1000);
+      const interval = tfConfig.interval === '1h' ? '1h' : '1d';
       let quotes;
       try {
-        quotes = await yahoo.historical(symbol, { period1, interval: '1d' });
+        quotes = await yahoo.historical(symbol, { period1, interval });
       } catch (e1) {
         // Fallback: chart API
         try {
-          const chartResult = await yahoo.chart(symbol, { period1, interval: '1d' });
+          const chartResult = await yahoo.chart(symbol, { period1, interval });
           quotes = chartResult?.quotes?.filter(q => q.close != null).map(q => ({
             date: new Date(q.date),
             open: q.open,
@@ -235,6 +250,20 @@ export async function analyzeAsset(symbol, name, assetType) {
   else if (opportunityScore >= 30) { signal = 'SAT'; signalColor = 'orange'; }
   else { signal = 'GÜÇLÜ SAT'; signalColor = 'red'; }
 
+  // Yıllık getiri tahmini (30 günlük performanstan yıllıklaştır)
+  const estimatedAnnualReturn = closes.length >= 30
+    ? parseFloat((((closes[closes.length-1] / closes[closes.length-30]) ** (365/30)) - 1) * 100).toFixed(1)
+    : closes.length >= 7
+      ? parseFloat((((closes[closes.length-1] / closes[closes.length-7]) ** (365/7)) - 1) * 100).toFixed(1)
+      : null;
+
+  // Risk seviyesi etiketi
+  let riskLevel = 'Orta';
+  if (volatility > 50) riskLevel = 'Çok Yüksek';
+  else if (volatility > 35) riskLevel = 'Yüksek';
+  else if (volatility > 20) riskLevel = 'Orta';
+  else riskLevel = 'Düşük';
+
   return {
     symbol,
     name: name || symbol,
@@ -246,6 +275,8 @@ export async function analyzeAsset(symbol, name, assetType) {
     volume: lastVolume,
     relativeVolume: parseFloat(relativeVolume.toFixed(2)),
     volatility: parseFloat(volatility.toFixed(1)),
+    estimatedAnnualReturn: estimatedAnnualReturn ? parseFloat(estimatedAnnualReturn) : null,
+    riskLevel,
     techScore,
     riskScore,
     momentumScore,
@@ -267,7 +298,7 @@ export async function analyzeAsset(symbol, name, assetType) {
 // SCAN ENTIRE MARKET
 // ═══════════════════════════════════════════════════════════════════════════
 
-export async function scanMarket(marketType = 'all') {
+export async function scanMarket(marketType = 'all', filters = {}) {
   const results = [];
   const errors = [];
   const marketsToScan = marketType === 'all'
@@ -290,7 +321,7 @@ export async function scanMarket(marketType = 'all') {
       try {
         const sym = typeof item === 'string' ? item : item.symbol;
         const name = typeof item === 'string' ? item : item.name;
-        const result = await analyzeAsset(sym, name, market);
+        const result = await analyzeAsset(sym, name, market, filters);
         result.flag = typeof item === 'object' ? item.flag : '🇹🇷';
         results.push(result);
       } catch (e) {

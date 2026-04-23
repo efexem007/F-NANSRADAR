@@ -151,7 +151,7 @@ router.get('/scan-all', async (req, res) => {
     safeSend('error', { ticker: 'SYSTEM', error: fatalErr.message, index: 0, total: 0 });
   } finally {
     clearInterval(keepAlive);
-    write('done', { total: processedCount, success: successCount, failed: failCount });
+    safeSend('done', { total: processedCount, success: successCount, failed: failCount });
     res.end();
   }
 });

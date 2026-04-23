@@ -63,6 +63,14 @@ router.get('/scan-stream', async (req, res) => {
 
   const market = req.query.market || 'all';
   const customSymbolsStr = req.query.symbols;
+  
+  // Filtre parametrelerini al
+  const filters = {
+    timeFrame: req.query.timeFrame || '1D',
+    returnExpectation: parseFloat(req.query.returnExpectation) || 0,
+    riskTolerance: parseFloat(req.query.riskTolerance) || 100,
+  };
+  
   let totalScanned = 0;
   let totalSuccess = 0;
   let totalSkipped = 0;
@@ -113,7 +121,7 @@ router.get('/scan-stream', async (req, res) => {
 
         totalScanned++;
         try {
-          const analyzed = await analyzeWithTimeout(() => analyzeAsset(item.symbol, item.name, item.type));
+          const analyzed = await analyzeWithTimeout(() => analyzeAsset(item.symbol, item.name, item.type, filters));
 
           if (analyzed && analyzed.currentPrice > 0) {
             safeSend('assetAnalyzed', analyzed);
