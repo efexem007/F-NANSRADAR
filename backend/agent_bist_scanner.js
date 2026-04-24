@@ -15,7 +15,7 @@ async function runControlledScan() {
   console.log('=============================================================\n');
 
   // Tüm hisseleri master JSON'dan toplayalım
-  const allTickers = [
+  const allTickers = bistMaster.allBist || [
     ...(bistMaster.bist30 || []),
     ...(bistMaster.bist100Additions || []),
   ];

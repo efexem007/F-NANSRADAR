@@ -250,7 +250,7 @@ model MonteCarloResult {
   confidenceP25   Float
   confidenceP75   Float
   confidenceP95   Float
-  modelParams     Json?    // {jumpIntensity, jumpMean, garch: {...}}
+  modelParams     String?  // SQLite json string fallback // {jumpIntensity, jumpMean, garch: {...}}
   createdAt       DateTime @default(now())
 
   @@index([symbol, createdAt])
