@@ -8,51 +8,52 @@ datasource db {
 }
 
 model User {
-  id        String   @id @default(uuid())
-  email     String   @unique
-  password  String
-  name      String?
-  createdAt DateTime @default(now())
+  id         String          @id @default(uuid())
+  email      String          @unique
+  password   String
+  name       String?
+  createdAt  DateTime        @default(now())
   portfolios Portfolio[]
   watchlist  WatchlistItem[]
 }
 
 model Portfolio {
-  id        String   @id @default(uuid())
-  name      String   @default("Ana Portfoy")
+  id        String          @id @default(uuid())
+  name      String          @default("Ana Portfoy")
   userId    String
-  createdAt DateTime @default(now())
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt DateTime        @default(now())
+  user      User            @relation(fields: [userId], references: [id], onDelete: Cascade)
   items     PortfolioItem[]
 }
 
 model PortfolioItem {
-  id          String   @id @default(uuid())
+  id          String    @id @default(uuid())
   portfolioId String
   ticker      String
   shares      Float
   avgCost     Float
   portfolio   Portfolio @relation(fields: [portfolioId], references: [id], onDelete: Cascade)
+
   @@unique([portfolioId, ticker])
 }
 
 model Stock {
-  ticker        String   @id
-  name          String
-  sector        String?
-  industry      String?
-  description   String?
-  type          String   @default("bist")    // bist, forex, crypto, commodity, index
-  exchange      String   @default("IS")      // IS, NYSE, NASDAQ, CCC vs
-  currency      String   @default("TRY")     // TRY, USD, EUR
-  source        String   @default("yahoo")   // yahoo, manual
-  marketCap     Float?
-  isActive      Boolean  @default(true)
-  lastPrice     Float?
-  lastUpdate    DateTime?
-  fundamental   FundamentalData[]
-  pricePoints   PricePoint[]
-  ratios        StockRatio?
+  ticker      String            @id
+  name        String
+  sector      String?
+  industry    String?
+  description String?
+  type        String            @default("bist")
+  exchange    String            @default("IS")
+  currency    String            @default("TRY")
+  source      String            @default("yahoo")
+  marketCap   Float?
+  isActive    Boolean           @default(true)
+  lastPrice   Float?
+  lastUpdate  DateTime?
+  fundamental FundamentalData[]
+  pricePoints PricePoint[]
+  ratios      StockRatio?
 
   @@index([sector])
   @@index([type])
@@ -79,6 +80,7 @@ model FundamentalData {
   operatingCashFlow  Float?
   createdAt          DateTime @default(now())
   stock              Stock    @relation(fields: [stockTicker], references: [ticker])
+
   @@unique([stockTicker, period])
 }
 
@@ -92,6 +94,7 @@ model PricePoint {
   close       Float
   volume      Float
   stock       Stock    @relation(fields: [stockTicker], references: [ticker])
+
   @@unique([stockTicker, date])
 }
 
@@ -120,138 +123,141 @@ model StockRatio {
 }
 
 model MacroIndicator {
-  id          String   @id @default(uuid())
-  type        String
-  value       Float
-  date        DateTime @default(now())
-  note        String?
+  id    String   @id @default(uuid())
+  type  String
+  value Float
+  date  DateTime @default(now())
+  note  String?
+
   @@index([type, date(sort: Desc)])
 }
 
 model SignalHistory {
-  id          String   @id @default(uuid())
-  ticker      String
-  signal      String
-  score       Int
-  price       Float
-  details     String?  // JSON string formatında alt skorlar (Teknik, Temel vb.)
-  createdAt   DateTime @default(now())
+  id        String   @id @default(uuid())
+  ticker    String
+  signal    String
+  score     Int
+  price     Float
+  details   String?
+  createdAt DateTime @default(now())
+
   @@index([ticker, createdAt])
   @@index([score])
 }
 
 model TechnicalIndicator {
-  id          String   @id @default(uuid())
-  ticker      String
-  date        DateTime
-  rsi14       Float?
-  macd        Float?
-  macdSignal  Float?
-  macdHist    Float?
-  sma20       Float?
-  sma50       Float?
+  id             String   @id @default(uuid())
+  ticker         String
+  date           DateTime
+  rsi14          Float?
+  macd           Float?
+  macdSignal     Float?
+  macdHist       Float?
+  sma20          Float?
+  sma50          Float?
   bollingerUpper Float?
   bollingerLower Float?
+
   @@unique([ticker, date])
   @@index([ticker, date(sort: Desc)])
 }
 
 model PredictionHistory {
-  id            String   @id @default(uuid())
-  ticker        String
-  analysisDate  DateTime @default(now())
-  currentPrice  Float
-  pred1w        Float?
-  pred1m        Float?
-  pred3m        Float?
-  pred1y        Float?
-  pred3y        Float?
-  actual1w      Float?
-  actual1m      Float?
-  actual3m      Float?
-  signal        String
-  score         Int
+  id           String   @id @default(uuid())
+  ticker       String
+  analysisDate DateTime @default(now())
+  currentPrice Float
+  pred1w       Float?
+  pred1m       Float?
+  pred3m       Float?
+  pred1y       Float?
+  pred3y       Float?
+  actual1w     Float?
+  actual1m     Float?
+  actual3m     Float?
+  signal       String
+  score        Int
+
   @@index([ticker, analysisDate])
 }
 
 model WatchlistItem {
-  id         String   @id @default(uuid())
-  userId     String
-  symbol     String
-  name       String?
-  assetType  String   @default("bist")   // bist, forex, crypto, commodity, index
-  addedPrice Float    @default(0)
+  id          String   @id @default(uuid())
+  userId      String
+  symbol      String
+  name        String?
+  assetType   String   @default("bist")
+  addedPrice  Float    @default(0)
   targetPrice Float?
   stopLoss    Float?
   notes       String?
-  tags        String?  // JSON array
+  tags        String?
   createdAt   DateTime @default(now())
   updatedAt   DateTime @default(now())
   user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
   @@unique([userId, symbol])
   @@index([userId])
 }
 
-// AI Tahminleri
 model Prediction {
-  id            String    @id @default(uuid())
-  symbol        String
-  method        String
-  predictedPrice Float
-  actualPrice   Float?
-  targetDate    DateTime
-  confidence    Float
-  error         Float?
-  errorPercent  Float?
-  accuracy      Float?
-  features      String? // SQLite json string fallback
+  id              String    @id @default(uuid())
+  symbol          String
+  method          String
+  predictedPrice  Float
+  actualPrice     Float?
+  targetDate      DateTime
+  confidence      Float
+  error           Float?
+  errorPercent    Float?
+  accuracy        Float?
+  features        String?
   marketCondition String?
-  evaluatedAt   DateTime?
-  createdAt     DateTime  @default(now())
-  
+  evaluatedAt     DateTime?
+  createdAt       DateTime  @default(now())
+
   @@index([symbol, createdAt])
   @@index([method, accuracy])
   @@map("predictions")
 }
 
-// Model performansı
 model ModelPerformance {
-  id              String    @id @default(uuid())
-  method          String    @unique
+  id               String   @id @default(uuid())
+  method           String   @unique
   totalPredictions Int      @default(0)
-  avgAccuracy     Float     @default(0)
-  lastUpdated     DateTime  @updatedAt
-  
+  avgAccuracy      Float    @default(0)
+  lastUpdated      DateTime @updatedAt
+
   @@map("model_performances")
 }
 
-// Hisse senedi analizleri
 model StockAnalysis {
-  id            String    @id @default(uuid())
-  symbol        String    @unique
-  indicators    String? // SQLite json string fallback
-  trend         String? // SQLite json string fallback
-  signals       String? // SQLite json string fallback
-  lastAnalyzed  DateTime
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
-  
+  id           String   @id @default(uuid())
+  symbol       String   @unique
+  indicators   String?
+  trend        String?
+  signals      String?
+  lastAnalyzed DateTime
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
   @@map("stock_analyses")
 }
+
 model MonteCarloResult {
-  id              Int      @id @default(autoincrement())
-  symbol          String
-  method          String   // monte_carlo_mjd_garch
-  days            Int
-  simulations     Int
-  currentPrice    Float
-  predictedPrice  Float
-  confidenceP5    Float
-  confidenceP25   Float
-  confidenceP75   Float
-  confidenceP95   Float
-  modelParams     String?  // SQLite json string fallback // {jumpIntensity, jumpMean, garch: {...}}
-  createdAt       DateTime @default(now())
+  id             Int      @id @default(autoincrement())
+  symbol         String
+  method         String
+  days           Int
+  simulations    Int
+  currentPrice   Float
+  predictedPrice Float
+  confidenceP5   Float
+  confidenceP25  Float
+  confidenceP75  Float
+  confidenceP95  Float
+  modelParams    String?
+  createdAt      DateTime @default(now())
 
   @@index([symbol, createdAt])
 }
