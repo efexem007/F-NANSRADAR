@@ -1,106 +1,203 @@
-import { useState } from 'react'
-import client from '../api/client'
-import { formatCurrency, formatPercent } from '../utils/formatters'
-import { Cpu, PlayCircle, Info } from 'lucide-react'
-import ChartCard from '../components/ChartCard'
+import React, { useState, useEffect } from 'react';
+import { useParams } from 'react-router-dom';
+import { Card } from '../components/ui/Card.jsx';
+import { Button } from '../components/ui/Button.jsx';
+import HorizonForecastChart from '../components/charts/HorizonForecastChart.jsx';
+import BacktestEquityCurve from '../components/charts/BacktestEquityCurve.jsx';
+import SignalAccuracyChart from '../components/charts/SignalAccuracyChart.jsx';
+import client from '../api/client';
 
-const Backtest = () => {
-  const [ticker, setTicker] = useState('')
-  const [startDate, setStartDate] = useState('')
-  const [endDate, setEndDate] = useState('')
-  const [loading, setLoading] = useState(false)
-  const [error, setError] = useState('')
-  const [result, setResult] = useState(null)
+export default function Backtest() {
+  const { symbol: paramSymbol } = useParams();
+  const [symbol, setSymbol] = useState(paramSymbol || 'GARAN');
+  const [period, setPeriod] = useState('ALL');
+  const [holdingPeriod, setHoldingPeriod] = useState(5);
+  const [stopLoss, setStopLoss] = useState(8);
+  const [takeProfit, setTakeProfit] = useState(15);
+  const [loading, setLoading] = useState(false);
+  const [forecastData, setForecastData] = useState([]);
+  const [backtestResult, setBacktestResult] = useState(null);
+  const [riskMetrics, setRiskMetrics] = useState(null);
+  const [accuracyData, setAccuracyData] = useState([]);
 
-  const handleSubmit = async (e) => {
-    e.preventDefault(); if (!ticker) return
+  const handleSearch = async () => {
+    setLoading(true);
     try {
-      setLoading(true); setError(''); setResult(null)
-      let url = `/backtest/${ticker.toUpperCase()}`
-      const params = new URLSearchParams()
-      if (startDate) params.append('startDate', startDate)
-      if (endDate) params.append('endDate', endDate)
-      if (params.toString()) url += `?${params}`
-      const res = await client.get(url)
-      if (res.data.error) setError(res.data.error); else setResult(res.data)
-    } catch (err) { setError(err.response?.data?.error || 'Hata') }
-    finally { setLoading(false) }
-  }
+      // Tahmin verilerini çek
+      const forecastRes = await client.get(`/backtest/${symbol}/full`);
+      const backtestRes = await client.get(`/backtest/${symbol}/backtest`, {
+        params: { period, holdingPeriod, stopLoss: stopLoss / 100, takeProfit: takeProfit / 100 }
+      });
+      const riskRes = await client.get(`/backtest/${symbol}/risk`);
+      const accuracyRes = await client.get(`/backtest/${symbol}/accuracy`, {
+        params: { lookbackDays: 365 }
+      });
+
+      // Transform horizon forecast data
+      const horizons = forecastRes.data.data?.horizons;
+      if (horizons) {
+        const transformedForecast = Object.entries(horizons).map(([key, h]) => ({
+          key,
+          label: h.horizon,
+          price: h.forecast?.price?.p50 || 0,
+          p5: h.forecast?.price?.p5 || 0,
+          p95: h.forecast?.price?.p95 || 0,
+          probUp: h.probabilities?.up || 0,
+          probDown: h.probabilities?.down5pct || 0,
+          signal: h.signal || 'BEKLE'
+        }));
+        setForecastData(transformedForecast);
+      } else {
+        setForecastData([]);
+      }
+
+      setBacktestResult(backtestRes.data.data);
+      setRiskMetrics(riskRes.data.data);
+
+      // Transform accuracy data
+      const accuracy = accuracyRes.data.data;
+      if (accuracy && accuracy.bySignalType) {
+        const transformedAcc = [
+          { signalType: 'GÜÇLÜ AL', ...(accuracy.bySignalType.strongBuy || {}) },
+          { signalType: 'AL', ...(accuracy.bySignalType.buy || {}) },
+          { signalType: 'SAT', ...(accuracy.bySignalType.sell || {}) }
+        ].map(item => ({
+          signalType: item.signalType,
+          accuracy1g: item.accuracy1g || 0,
+          accuracy5g: item.accuracy5g || 0,
+          accuracy21g: item.accuracy21g || 0
+        }));
+        setAccuracyData(transformedAcc);
+      } else {
+        setAccuracyData([]);
+      }
+
+      setLoading(false);
+    } catch (err) {
+      console.error(err);
+      // Fallback to sample data
+      setForecastData([]);
+      setBacktestResult({});
+      setRiskMetrics({});
+      setAccuracyData([]);
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (paramSymbol) {
+      setSymbol(paramSymbol);
+      handleSearch();
+    }
+  }, [paramSymbol]);
 
   return (
-    <div className="space-y-6 animate-fade-in">
-      <div>
-        <h1 className="text-2xl font-bold flex items-center gap-2"><Cpu size={24} className="text-purple-400" /> Sinyal Simülasyonu</h1>
-        <p className="text-sm text-slate-500 mt-1">Geçmişe dönük AL-SAT performans analizi</p>
+    <div className="p-6 max-w-7xl mx-auto">
+      <h1 className="text-3xl font-bold text-white mb-6">Backtesting & Tahmin Modülü</h1>
+
+      {/* Arama ve Parametreler */}
+      <Card className="p-6 mb-6">
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+          <div>
+            <label className="block text-sm font-medium text-slate-300 mb-2">Sembol</label>
+            <input
+              type="text"
+              className="w-full p-2 bg-gray-800 border border-gray-700 rounded text-white"
+              value={symbol}
+              onChange={(e) => setSymbol(e.target.value.toUpperCase())}
+              placeholder="Örn: GARAN"
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-slate-300 mb-2">Zaman Dilimi</label>
+            <select
+              className="w-full p-2 bg-gray-800 border border-gray-700 rounded text-white"
+              value={period}
+              onChange={(e) => setPeriod(e.target.value)}
+            >
+              <option value="DAILY">Günlük</option>
+              <option value="WEEKLY">Haftalık</option>
+              <option value="MONTHLY">Aylık</option>
+              <option value="YEARLY">Yıllık</option>
+              <option value="ALL">Tümü</option>
+            </select>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-slate-300 mb-2">Stop Loss (%)</label>
+            <input
+              type="number"
+              className="w-full p-2 bg-gray-800 border border-gray-700 rounded text-white"
+              value={stopLoss}
+              onChange={(e) => setStopLoss(Number(e.target.value))}
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-slate-300 mb-2">Take Profit (%)</label>
+            <input
+              type="number"
+              className="w-full p-2 bg-gray-800 border border-gray-700 rounded text-white"
+              value={takeProfit}
+              onChange={(e) => setTakeProfit(Number(e.target.value))}
+            />
+          </div>
+        </div>
+        <div className="mt-4 flex justify-end">
+          <Button onClick={handleSearch} loading={loading}>
+            Analiz Çalıştır
+          </Button>
+        </div>
+      </Card>
+
+      {/* Horizon Tahmin Grid */}
+      <div className="mb-8">
+        <h2 className="text-2xl font-bold text-white mb-4">Çoklu Horizon Tahminleri</h2>
+        <HorizonForecastChart data={forecastData} />
       </div>
 
-      <div className="grid grid-cols-12 gap-6">
-        <div className="col-span-4">
-          <ChartCard icon="🎮" title="Parametreler">
-            <form onSubmit={handleSubmit} className="space-y-4">
-              <div><label className="text-xs font-semibold text-slate-400 mb-1 block uppercase tracking-wider">Hisse</label>
-                <input placeholder="AKBNK" value={ticker} onChange={e => setTicker(e.target.value)} required className="input-field uppercase" /></div>
-              <div><label className="text-xs font-semibold text-slate-400 mb-1 block uppercase tracking-wider">Başlangıç</label>
-                <input type="date" value={startDate} onChange={e => setStartDate(e.target.value)} className="input-field" /></div>
-              <div><label className="text-xs font-semibold text-slate-400 mb-1 block uppercase tracking-wider">Bitiş</label>
-                <input type="date" value={endDate} onChange={e => setEndDate(e.target.value)} className="input-field" /></div>
-              <button type="submit" disabled={loading} className="btn-primary w-full">
-                {loading ? <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" /> : <><PlayCircle size={14} /> Simülasyonu Başlat</>}
-              </button>
-            </form>
-            <div className="mt-4 flex gap-2 text-xs p-3 rounded-lg bg-white/5 border border-white/5 text-slate-500">
-              <Info size={14} className="shrink-0 mt-0.5 text-purple-400" />
-              <p>₺10.000 başlangıç sermayesi üzerinden hesaplama yapar.</p>
-            </div>
-          </ChartCard>
-        </div>
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* Backtest Equity Curve */}
+        <Card className="p-6">
+          <h2 className="text-xl font-bold text-white mb-4">Equity Curve</h2>
+          <BacktestEquityCurve data={backtestResult?.equityCurve} />
+        </Card>
 
-        <div className="col-span-8">
-          <ChartCard icon="📊" title="Sonuçlar">
-            {error && <div className="bg-red-500/10 text-red-400 text-sm p-3 rounded-lg mb-4">{error}</div>}
-            {!result && !loading && !error && (
-              <div className="flex flex-col items-center justify-center h-64 text-slate-500"><Cpu size={48} className="mb-4 opacity-20" /><p className="text-sm">Testi başlatın.</p></div>
-            )}
-            {result && (
-              <div className="animate-fade-in">
-                <div className="grid grid-cols-4 gap-3 mb-5">
-                  {[
-                    { label: 'Final Bakıye', value: formatCurrency(result.finalCapital), color: 'text-white' },
-                    { label: 'Toplam Getiri', value: `${result.totalReturnPercent >= 0 ? '+' : ''}${formatPercent(result.totalReturnPercent)}`, color: result.totalReturnPercent >= 0 ? 'text-green-400' : 'text-red-400' },
-                    { label: 'Kazanım Oranı', value: `${result.winRate?.toFixed(1)}%`, color: 'text-cyan-400' },
-                    { label: 'Maks Düşüş', value: `-${result.maxDrawdownPercent?.toFixed(1)}%`, color: 'text-yellow-400' },
-                  ].map(c => (
-                    <div key={c.label} className="glass-card !p-3">
-                      <p className="text-[10px] text-slate-500 uppercase tracking-wider mb-1">{c.label}</p>
-                      <p className={`text-lg font-bold ${c.color}`}>{c.value}</p>
-                    </div>
-                  ))}
-                </div>
-                {result.trades && result.trades.length > 0 && (
-                  <div className="overflow-auto max-h-64">
-                    <table className="w-full data-table">
-                      <thead><tr><th>Tarih</th><th>İşlem</th><th className="text-right">Fiyat</th></tr></thead>
-                      <tbody>
-                        {result.trades.map((t, i) => (
-                          <tr key={i}>
-                            <td className="text-slate-400 text-xs">{new Date(t.date).toLocaleDateString('tr-TR')}</td>
-                            <td><span className={`text-xs font-bold px-2 py-0.5 rounded ${
-                              t.action === 'BUY' ? 'bg-green-500/20 text-green-400' : 'bg-red-500/20 text-red-400'
-                            }`}>{t.action === 'BUY' ? 'AL' : 'SAT'}</span></td>
-                            <td className="text-right font-mono">{formatCurrency(t.price)}</td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                )}
-              </div>
-            )}
-          </ChartCard>
+        {/* Sinyal Doğruluk Chart */}
+        <Card className="p-6">
+          <h2 className="text-xl font-bold text-white mb-4">Sinyal Doğruluk Oranları</h2>
+          <SignalAccuracyChart data={accuracyData} />
+        </Card>
+      </div>
+
+      {/* Risk Metrikleri */}
+      <div className="mt-8">
+        <h2 className="text-2xl font-bold text-white mb-4">Risk Metrikleri</h2>
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <Card className="p-4 text-center">
+            <div className="text-sm text-slate-400">VaR %95</div>
+            <div className="text-2xl font-bold text-white">
+              {riskMetrics?.var95 ? `${riskMetrics.var95}%` : '--'}
+            </div>
+          </Card>
+          <Card className="p-4 text-center">
+            <div className="text-sm text-slate-400">CVaR %95</div>
+            <div className="text-2xl font-bold text-white">
+              {riskMetrics?.cvar95 ? `${riskMetrics.cvar95}%` : '--'}
+            </div>
+          </Card>
+          <Card className="p-4 text-center">
+            <div className="text-sm text-slate-400">Sortino Ratio</div>
+            <div className="text-2xl font-bold text-white">
+              {riskMetrics?.sortinoRatio || '--'}
+            </div>
+          </Card>
+          <Card className="p-4 text-center">
+            <div className="text-sm text-slate-400">Beta</div>
+            <div className="text-2xl font-bold text-white">
+              {riskMetrics?.beta || '--'}
+            </div>
+          </Card>
         </div>
       </div>
     </div>
-  )
+  );
 }
-
-export default Backtest

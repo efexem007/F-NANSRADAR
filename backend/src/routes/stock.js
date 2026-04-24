@@ -1,20 +1,205 @@
+/**
+ * FinansRadar — Stock Routes v2.0
+ * ================================
+ * Görev 18: Hisse doğrulama endpoint
+ * Görev 19: Hisse listeleme API (filtreli, sayfalı)
+ * Görev 20: Hisse arama API
+ * Görev 35: Hisse ekleme API
+ * Görev 38: Çoklu hisse ekleme
+ */
+
 import { Router } from 'express';
 import prisma from '../lib/prisma.js';
 import { asyncHandler } from '../lib/asyncHandler.js';
 import { fetchStockPrices } from '../services/yahooFinance.js';
-import { analyzeStock } from '../services/analysis.js';
+import { getAnalyzeStock } from '../services/analysis.js';
 import { getPredictionHistory } from '../services/predictionHistory.js';
+import {
+  validateTicker,
+  enrichStockInfo,
+  batchEnrichStocks,
+  discoverAndRegister,
+  batchDiscover,
+  searchStocks,
+  listStocks,
+  batchUpdatePrices,
+} from '../services/stockDiscovery.js';
+
 const router = Router();
 
+// ═══════════════════════════════════════════════════════════════════════════
+// GÖREV 19: HİSSE LİSTELEME (Filtreli, Sayfalı)
+// ═══════════════════════════════════════════════════════════════════════════
+
 router.get('/list', asyncHandler(async (req, res) => {
-  const limit = Math.min(parseInt(req.query.limit) || 50, 200);
-  const offset = parseInt(req.query.offset) || 0;
-  const [stocks, total] = await prisma.$transaction([
-    prisma.stock.findMany({ include: { ratios: true }, take: limit, skip: offset, orderBy: { ticker: 'asc' } }),
-    prisma.stock.count()
-  ]);
-  res.json({ data: stocks, total, limit, offset });
+  const {
+    page, pageSize, type, sector, exchange, isActive,
+    sortBy, sortOrder, minMarketCap, maxMarketCap, indexFilter
+  } = req.query;
+
+  const result = await listStocks({
+    page: parseInt(page) || 1,
+    pageSize: parseInt(pageSize) || 50,
+    type: type || undefined,
+    sector: sector || undefined,
+    exchange: exchange || undefined,
+    isActive: isActive === 'false' ? false : isActive === 'all' ? null : true,
+    sortBy: sortBy || 'ticker',
+    sortOrder: sortOrder || 'asc',
+    minMarketCap: minMarketCap ? parseFloat(minMarketCap) : undefined,
+    maxMarketCap: maxMarketCap ? parseFloat(maxMarketCap) : undefined,
+    indexFilter: indexFilter || undefined,
+  });
+
+  res.json(result);
 }));
+
+// ═══════════════════════════════════════════════════════════════════════════
+// GÖREV 20: HİSSE ARAMA (Fuzzy Search)
+// ═══════════════════════════════════════════════════════════════════════════
+
+router.get('/search', asyncHandler(async (req, res) => {
+  const { q, limit, type } = req.query;
+
+  if (!q || q.trim().length === 0) {
+    return res.status(400).json({ error: 'Arama terimi gerekli (q parametresi)' });
+  }
+
+  const results = await searchStocks(q, {
+    limit: parseInt(limit) || 20,
+    type: type || undefined,
+    includeScore: false,
+  });
+
+  res.json({ query: q, count: results.length, results });
+}));
+
+// ═══════════════════════════════════════════════════════════════════════════
+// GÖREV 18: HİSSE DOĞRULAMA
+// ═══════════════════════════════════════════════════════════════════════════
+
+router.get('/validate/:ticker', asyncHandler(async (req, res) => {
+  const { ticker } = req.params;
+  const result = await validateTicker(ticker);
+  res.json(result);
+}));
+
+// ═══════════════════════════════════════════════════════════════════════════
+// GÖREV 35: HİSSE EKLEME (Tekli Otomatik Keşif)
+// ═══════════════════════════════════════════════════════════════════════════
+
+router.post('/discover', asyncHandler(async (req, res) => {
+  const { ticker } = req.body;
+
+  if (!ticker) {
+    return res.status(400).json({ error: 'Ticker gerekli' });
+  }
+
+  const result = await discoverAndRegister(ticker);
+  
+  if (result.action === 'error' || result.action === 'invalid') {
+    return res.status(400).json(result);
+  }
+
+  res.json(result);
+}));
+
+// ═══════════════════════════════════════════════════════════════════════════
+// GÖREV 38: ÇOKLU HİSSE EKLEME (Batch Discovery)
+// ═══════════════════════════════════════════════════════════════════════════
+
+router.post('/discover/batch', asyncHandler(async (req, res) => {
+  const { tickers } = req.body;
+
+  if (!tickers || !Array.isArray(tickers) || tickers.length === 0) {
+    return res.status(400).json({ error: 'tickers dizisi gerekli' });
+  }
+
+  if (tickers.length > 50) {
+    return res.status(400).json({ error: 'Tek seferde en fazla 50 hisse eklenebilir' });
+  }
+
+  const result = await batchDiscover(tickers);
+  res.json(result);
+}));
+
+// ═══════════════════════════════════════════════════════════════════════════
+// GÖREV 17: HİSSE BİLGİSİ GÜNCELLEME (Enrichment)
+// ═══════════════════════════════════════════════════════════════════════════
+
+router.post('/enrich/:ticker', asyncHandler(async (req, res) => {
+  const { ticker } = req.params;
+  const result = await enrichStockInfo(ticker);
+  res.json(result);
+}));
+
+router.post('/enrich-batch', asyncHandler(async (req, res) => {
+  const { type = 'bist', limit = 20 } = req.body;
+  
+  const stocks = await prisma.stock.findMany({
+    where: { isActive: true, type },
+    select: { ticker: true },
+    take: Math.min(parseInt(limit), 100),
+    orderBy: { lastUpdate: 'asc' },
+  });
+
+  const tickers = stocks.map(s => s.ticker);
+  const result = await batchEnrichStocks(tickers);
+  res.json(result);
+}));
+
+// ═══════════════════════════════════════════════════════════════════════════
+// BATCH FİYAT GÜNCELLEME
+// ═══════════════════════════════════════════════════════════════════════════
+
+router.post('/update-prices', asyncHandler(async (req, res) => {
+  const { type = 'bist', batchSize = 10 } = req.body;
+  const result = await batchUpdatePrices({ type, batchSize });
+  res.json(result);
+}));
+
+// ═══════════════════════════════════════════════════════════════════════════
+// SEKTÖR & İSTATİSTİK
+// ═══════════════════════════════════════════════════════════════════════════
+
+router.get('/sectors', asyncHandler(async (req, res) => {
+  const sectors = await prisma.stock.groupBy({
+    by: ['sector'],
+    where: { isActive: true },
+    _count: { ticker: true },
+    _avg: { lastPrice: true },
+    orderBy: { _count: { ticker: 'desc' } },
+  });
+
+  res.json({
+    sectors: sectors.map(s => ({
+      name: s.sector || 'Tanımsız',
+      stockCount: s._count.ticker,
+      avgPrice: s._avg.lastPrice ? parseFloat(s._avg.lastPrice.toFixed(2)) : null,
+    })),
+  });
+}));
+
+router.get('/stats', asyncHandler(async (req, res) => {
+  const [totalStocks, activeStocks, typeDistribution] = await Promise.all([
+    prisma.stock.count(),
+    prisma.stock.count({ where: { isActive: true } }),
+    prisma.stock.groupBy({
+      by: ['type'],
+      _count: { ticker: true },
+    }),
+  ]);
+
+  res.json({
+    total: totalStocks,
+    active: activeStocks,
+    types: typeDistribution.map(t => ({ type: t.type, count: t._count.ticker })),
+  });
+}));
+
+// ═══════════════════════════════════════════════════════════════════════════
+// MEVCUT ENDPOINT'LER (Korundu)
+// ═══════════════════════════════════════════════════════════════════════════
 
 router.get('/:ticker/price', asyncHandler(async (req, res) => {
   const { ticker } = req.params;
@@ -25,24 +210,142 @@ router.get('/:ticker/price', asyncHandler(async (req, res) => {
 
 router.get('/:ticker/fundamental', asyncHandler(async (req, res) => {
   const { ticker } = req.params;
-  const stock = await prisma.stock.findUnique({ where: { ticker }, include: { fundamental: { orderBy: { period: 'desc' }, take: 1 }, ratios: true } });
-  res.json(stock);
+  
+  // 1. DB'de kayıtlı veri var mı kontrol et
+  const stock = await prisma.stock.findUnique({
+    where: { ticker },
+    include: { fundamental: { orderBy: { period: 'desc' }, take: 1 }, ratios: true }
+  });
+  
+  // 2. DB'de fundamental veri varsa ve yeni ise direkt döndür
+  const dbFund = stock?.fundamental?.[0];
+  const isDBFresh = dbFund && (Date.now() - new Date(dbFund.createdAt || Date.now()).getTime() < 24 * 60 * 60 * 1000);
+  
+  if (isDBFresh) {
+    return res.json(stock);
+  }
+  
+  // 3. DB'de veri yok veya eski → Yahoo'dan çek
+  const { fetchStockFundamentals } = await import('../services/yahooFinance.js');
+  const liveData = await fetchStockFundamentals(ticker).catch(() => null);
+  
+  if (!liveData) {
+    return res.json(stock || { ticker, fundamental: [], ratios: null });
+  }
+  
+  // 4. Canlı veriyi DB'ye kaydet (Stock yoksa oluştur)
+  try {
+    await prisma.stock.upsert({
+      where: { ticker },
+      create: { ticker, name: liveData.profile?.name || ticker, sector: liveData.profile?.sector, industry: liveData.profile?.industry },
+      update: { name: liveData.profile?.name || undefined }
+    });
+    
+    const fund = liveData.fundamental;
+    if (fund && (fund.netSales || fund.ebitda)) {
+      await prisma.fundamentalData.create({
+        data: {
+          stockTicker: ticker,
+          period: fund.period || new Date().getFullYear().toString(),
+          revenue: fund.netSales || null,
+          netSales: fund.netSales || null,
+          grossProfit: fund.grossProfit || null,
+          ebitda: fund.ebitda || null,
+          netProfit: fund.netProfit || null,
+          totalAssets: fund.totalAssets || null,
+          equity: fund.equity || null,
+          totalDebt: fund.totalDebt || null,
+          currentAssets: fund.currentAssets || null,
+          currentLiabilities: fund.currentLiabilities || null,
+          freeCashFlow: fund.freeCashFlow || null,
+          operatingCashFlow: fund.operatingCashFlow || null,
+        }
+      }).catch(() => {});
+    }
+    
+    const r = liveData.ratios;
+    if (r) {
+      await prisma.stockRatio.upsert({
+        where: { stockTicker: ticker },
+        create: {
+          stockTicker: ticker,
+          fk: r.fk || null,
+          pddd: r.pddd || null,
+          netMargin: r.netMargin || null,
+          grossMargin: r.grossMargin || null,
+          currentRatio: r.currentRatio || null,
+          leverageRatio: r.leverage || null,
+          ebitdaMargin: r.ebitdaMargin || null,
+          roe: r.roe || null,
+          roa: r.roa || null,
+          beta: r.beta || null,
+          evToEbitda: r.evToEbitda || null,
+          dividendYield: r.dividendYield || null,
+        },
+        update: {
+          fk: r.fk || null,
+          pddd: r.pddd || null,
+          netMargin: r.netMargin || null,
+          grossMargin: r.grossMargin || null,
+          currentRatio: r.currentRatio || null,
+          leverageRatio: r.leverage || null,
+          ebitdaMargin: r.ebitdaMargin || null,
+          roe: r.roe || null,
+          roa: r.roa || null,
+          beta: r.beta || null,
+          evToEbitda: r.evToEbitda || null,
+          dividendYield: r.dividendYield || null,
+        }
+      }).catch(() => {});
+    }
+  } catch(saveErr) {
+    console.warn('Fundamental kayıt hatası:', saveErr.message);
+  }
+  
+  // 5. Frontend uyumlu format döndür
+  res.json({
+    ticker,
+    name: liveData.profile?.name || ticker,
+    sector: liveData.profile?.sector,
+    fundamental: [{
+      period: liveData.fundamental?.period || new Date().getFullYear().toString(),
+      netSales: liveData.fundamental?.netSales,
+      grossProfit: liveData.fundamental?.grossProfit,
+      ebitda: liveData.fundamental?.ebitda,
+      netProfit: liveData.fundamental?.netProfit,
+      totalAssets: liveData.fundamental?.totalAssets,
+      equity: liveData.fundamental?.equity,
+      totalDebt: liveData.fundamental?.totalDebt,
+      currentAssets: liveData.fundamental?.currentAssets,
+      freeCashFlow: liveData.fundamental?.freeCashFlow,
+    }],
+    ratios: liveData.ratios,
+    profile: liveData.profile,
+  });
 }));
+
 
 // Tam indikatör analizi - sistemde olmayan hisseler de dahil
 router.get('/:ticker/analyze', asyncHandler(async (req, res) => {
   const { ticker } = req.params;
-  const { period = '3mo' } = req.query;
-  const result = await analyzeStock(ticker.toUpperCase(), period);
+  const { period = '3mo', force = 'false' } = req.query;
+  const isForce = force === 'true';
+  const result = await getAnalyzeStock(ticker.toUpperCase(), period, isForce);
   res.json(result);
 }));
 
 // Tahmin geçmişi karşılaştırma
-router.get('/:ticker/history', asyncHandler(async (req, res) => {
-  const { ticker } = req.params;
-  const limit = Math.min(parseInt(req.query.limit) || 20, 50);
-  const history = await getPredictionHistory(ticker.toUpperCase(), limit);
-  res.json(history);
+import { auditStockData, auditAllData } from '../services/dataAudit.js';
+// ... existing imports ...
+
+router.get('/:ticker/audit', asyncHandler(async (req, res) => {
+  const result = await auditStockData(req.params.ticker.toUpperCase());
+  res.json(result);
+}));
+
+router.get('/audit/all', asyncHandler(async (req, res) => {
+  const result = await auditAllData();
+  res.json(result);
 }));
 
 export default router;

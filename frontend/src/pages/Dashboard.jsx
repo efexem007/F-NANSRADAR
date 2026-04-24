@@ -14,7 +14,7 @@ import MonthlyChangeChart from '../components/charts/MonthlyChangeChart'
 import CumulativeChart from '../components/charts/CumulativeChart'
 import VolatilityRadar from '../components/charts/VolatilityRadar'
 import RiskGauge from '../components/charts/RiskGauge'
-import { TrendingUp } from 'lucide-react'
+import { TrendingUp, Globe } from 'lucide-react'
 
 const Dashboard = () => {
   const [portfolio, setPortfolio] = useState({ items: [], summary: {} })
@@ -34,6 +34,14 @@ const Dashboard = () => {
   const [search, setSearch] = useState('')
   // Madde 29: Geçiş
   const [transitioning, setTransitioning] = useState(false)
+
+  // Makro Seleksiyonları
+  const [macroCountry, setMacroCountry] = useState('TR')
+  const [macroCompany, setMacroCompany] = useState('THYAO')
+  const [macroCompany2, setMacroCompany2] = useState('AKBNK')
+  const [allStocksForCompare, setAllStocksForCompare] = useState([])
+  const [compareSearch1, setCompareSearch1] = useState('')
+  const [compareSearch2, setCompareSearch2] = useState('')
 
   const { toggle, isFavorite } = useFavorites()
 
@@ -78,6 +86,14 @@ const Dashboard = () => {
     fetchAll()
   }, [])
 
+  // Karşılaştırma için tüm hisseleri yükle
+  useEffect(() => {
+    client.get('/stock/list?pageSize=500&sortBy=ticker').then(res => {
+      const stocks = res.data?.data || (Array.isArray(res.data) ? res.data : (res.data?.stocks || res.data?.items || []))
+      setAllStocksForCompare(stocks)
+    }).catch(() => {})
+  }, [])
+
   const { summary } = portfolio
   const tickers = Object.keys(prices).filter(t => prices[t].length > 0)
 
@@ -109,11 +125,38 @@ const Dashboard = () => {
     return data
   }, [prices, filteredTickers])
 
-  // Madde 14: Monthly change data
+  // Madde 14: Monthly change data (gerçek fiyat verisinden hesaplanır)
   const monthlyChangeData = useMemo(() => {
     const labels = ['Ock', 'Şub', 'Mar', 'Nis', 'May', 'Haz', 'Tem', 'Ağu', 'Eyl', 'Eki', 'Kas', 'Ara']
-    return labels.map(month => ({ month, change: parseFloat(((Math.random() - 0.4) * 12).toFixed(2)) }))
-  }, [])
+    if (filteredTickers.length === 0) {
+      return labels.map(month => ({ month, change: 0 }))
+    }
+    // Tüm hisselerin aylık değişimlerini hesapla
+    const monthlyChanges = labels.map((_, monthIdx) => {
+      let totalChange = 0
+      let count = 0
+      filteredTickers.forEach(t => {
+        const arr = prices[t]
+        if (!arr || arr.length < 2) return
+        // Her hissenin başlangıç ve bitiş fiyatını bul
+        const year = new Date().getFullYear()
+        const monthStart = new Date(year, monthIdx, 1).getTime()
+        const monthEnd = new Date(year, monthIdx + 1, 0).getTime()
+        const monthPrices = arr.filter(p => {
+          const d = new Date(p.date).getTime()
+          return d >= monthStart && d <= monthEnd
+        })
+        if (monthPrices.length >= 2) {
+          const firstPrice = monthPrices[0].close
+          const lastPrice = monthPrices[monthPrices.length - 1].close
+          totalChange += ((lastPrice - firstPrice) / firstPrice) * 100
+          count++
+        }
+      })
+      return count > 0 ? totalChange / count : 0
+    })
+    return labels.map((month, i) => ({ month, change: parseFloat(monthlyChanges[i].toFixed(2)) }))
+  }, [prices, filteredTickers])
 
   // Madde 15: Cumulative data
   const cumulativeData = useMemo(() => {
@@ -134,15 +177,59 @@ const Dashboard = () => {
     return data
   }, [prices, filteredTickers])
 
-  // Madde 16: Radar data
+  // Madde 16: Radar data (gerçek fiyat verisinden hesaplanır)
   const radarData = useMemo(() => {
     const subjects = ['Volatilite', 'Ort. Getiri', 'Max Kazanç', 'Tutarlılık', 'Sharpe']
+    if (filteredTickers.length === 0) {
+      return subjects.map(subject => ({ subject }))
+    }
     return subjects.map(subject => {
       const point = { subject }
-      filteredTickers.forEach(t => { point[t] = Math.round(Math.random() * 80 + 20) })
+      filteredTickers.forEach(t => {
+        const arr = prices[t]
+        if (!arr || arr.length < 2) {
+          point[t] = 0
+          return
+        }
+        const returns = arr.slice(1).map((p, i) => (p.close - arr[i].close) / arr[i].close)
+        switch (subject) {
+          case 'Volatilite': {
+            const mean = returns.reduce((a, b) => a + b, 0) / returns.length
+            const variance = returns.reduce((s, r) => s + (r - mean) ** 2, 0) / returns.length
+            const vol = Math.sqrt(variance) * Math.sqrt(252) * 100
+            point[t] = Math.min(100, Math.round(vol))
+            break
+          }
+          case 'Ort. Getiri': {
+            const avgReturn = (returns.reduce((a, b) => a + b, 0) / returns.length) * 100
+            point[t] = Math.min(100, Math.max(0, Math.round(avgReturn * 10 + 50)))
+            break
+          }
+          case 'Max Kazanç': {
+            const maxGain = Math.max(...returns) * 100
+            point[t] = Math.min(100, Math.max(0, Math.round(maxGain * 5 + 50)))
+            break
+          }
+          case 'Tutarlılık': {
+            const posDays = returns.filter(r => r > 0).length
+            const consistency = (posDays / returns.length) * 100
+            point[t] = Math.round(consistency)
+            break
+          }
+          case 'Sharpe': {
+            const mean = returns.reduce((a, b) => a + b, 0) / returns.length
+            const std = Math.sqrt(returns.reduce((s, r) => s + (r - mean) ** 2, 0) / returns.length)
+            const sharpe = std > 0 ? (mean / std) * Math.sqrt(252) : 0
+            point[t] = Math.min(100, Math.max(0, Math.round(sharpe * 20 + 50)))
+            break
+          }
+          default:
+            point[t] = 50
+        }
+      })
       return point
     })
-  }, [filteredTickers])
+  }, [prices, filteredTickers])
 
   // Madde 38: Risk score
   const riskScore = useMemo(() => {
@@ -155,8 +242,17 @@ const Dashboard = () => {
     setTimeout(() => { setActiveStock(ticker); setTransitioning(false) }, 150)
   }
 
-  const cds = macros.find(m => m.type === 'CDS')
-  const vix = macros.find(m => m.type === 'VIX')
+  // Makro verilerini backend'den gelen formata göre çözümle
+  // Backend /macro endpoint'i { vix, usdtry, bist100, cds, interest, sp500 } şeklinde obje döndürür
+  const macroData = Array.isArray(macros)
+    ? Object.fromEntries(macros.map(m => [m.type?.toLowerCase(), m]))
+    : (macros || {})
+  const cds = macroData.cds?.value ?? macroData.cds ?? null
+  const vix = macroData.vix?.value ?? macroData.vix ?? null
+  const interest = macroData.interest?.value ?? macroData.interest ?? null
+  const usdtry = macroData.usdtry?.value ?? macroData.usdtry ?? null
+  const bist100 = macroData.bist100?.value ?? macroData.bist100 ?? null
+  const sp500 = macroData.sp500?.value ?? macroData.sp500 ?? null
 
   if (loading) {
     return (
@@ -181,8 +277,10 @@ const Dashboard = () => {
           </div>
         </div>
         {/* Madde 46: Arama */}
-        <input type="text" placeholder="Hisse ara... (THYAO...)" value={search} onChange={e => setSearch(e.target.value)}
-          className="bg-white/5 border border-white/10 rounded-xl px-4 py-2 text-sm text-slate-300 placeholder-slate-500 focus:outline-none focus:border-purple-500/50 w-64" />
+        <form onSubmit={(e) => { e.preventDefault(); if(search) window.location.href = `/stock/${search.toUpperCase()}`}}>
+          <input type="text" placeholder="Hisse ara... (THYAO...)" value={search} onChange={e => setSearch(e.target.value)}
+            className="bg-white/5 border border-white/10 rounded-xl px-4 py-2 text-sm text-slate-300 placeholder-slate-500 focus:outline-none focus:border-purple-500/50 w-64" />
+        </form>
       </div>
 
       {/* Madde 4: Timeline Slider */}
@@ -222,8 +320,8 @@ const Dashboard = () => {
           { icon: '🚀', label: 'En Yüksek Fiyat', value: `₺${bestStock?.lastPrice?.toFixed(2) || '—'}`, sub: bestStock?.ticker },
           { icon: '📉', label: 'En Düşük Fiyat', value: `₺${worstStock?.lastPrice?.toFixed(2) || '—'}`, sub: worstStock?.ticker },
           { icon: '💰', label: 'Toplam Piyasa', value: <AnimatedNumber value={totalMarketCap / 1e12} prefix="₺" suffix="T" />, sub: `${tickers.length} hisse` },
-          { icon: '📊', label: 'CDS Spread', value: `${cds?.value || '—'} bps`, sub: 'Türkiye Riski' },
-          { icon: '⚡', label: 'VIX Endeksi', value: `${vix?.value || '—'}`, sub: 'Piyasa Volatilitesi' },
+          { icon: '📊', label: 'CDS Spread', value: `${cds || '—'} bps`, sub: 'Türkiye Riski' },
+          { icon: '⚡', label: 'VIX Endeksi', value: `${vix || '—'}`, sub: 'Piyasa Volatilitesi' },
         ].map(kpi => (
           <div key={kpi.label} className="glass-card glass-card-hover p-4">
             <div className="text-2xl mb-1">{kpi.icon}</div>
@@ -294,6 +392,96 @@ const Dashboard = () => {
               </div>
             )}
           </ChartCard>
+        </div>
+      </div>
+
+      {/* Küresel Makro & Şirket Bağlantısı */}
+      <div className="mt-8 pt-8 border-t border-white/10 animate-fade-in">
+        <div className="flex items-center justify-between mb-5">
+          <div>
+            <h2 className="text-xl font-bold flex items-center gap-2"><Globe size={22} className="text-cyan-400" /> Makro Ekonomik Etki Analizi</h2>
+            <p className="text-xs text-slate-500 mt-1">Seçili ülkenin makro verilerinin şirketlere olası etkilerini inceleyin.</p>
+          </div>
+          <div className="flex flex-wrap gap-2 items-center">
+            <select value={macroCountry} onChange={e => setMacroCountry(e.target.value)} className="bg-[#0f1025] border border-white/10 rounded-xl px-3 py-2 text-xs text-slate-300 focus:outline-none focus:border-cyan-500/50">
+              <option value="TR">🇹🇷 Türkiye</option>
+              <option value="US">🇺🇸 Amerika</option>
+              <option value="EU">🇪🇺 Avrupa</option>
+            </select>
+            {/* Hisse 1 */}
+            <div className="flex flex-col gap-1">
+              <input type="text" placeholder="Ara hisse 1..." value={compareSearch1} onChange={e => setCompareSearch1(e.target.value)}
+                className="bg-[#0f1025] border border-purple-500/30 rounded-lg px-2 py-1 text-[10px] text-slate-300 w-32 focus:outline-none" />
+              <select value={macroCompany} onChange={e => { setMacroCompany(e.target.value); setCompareSearch1('') }}
+                className="bg-[#0f1025] border border-purple-500/50 rounded-xl px-3 py-1.5 text-xs text-white focus:outline-none w-40">
+                <option value="TÜMÜ">Tüm Şirketler</option>
+                {(allStocksForCompare.length > 0 ? allStocksForCompare : tickers.map(t => ({ ticker: t, name: t })))
+                  .filter(s => {
+                    const tick = (s.ticker || '').replace('.IS', '')
+                    const q = compareSearch1.toLowerCase()
+                    return !q || tick.toLowerCase().includes(q) || (s.name || '').toLowerCase().includes(q)
+                  })
+                  .map(s => { const tick = (s.ticker||'').replace('.IS',''); return <option key={tick} value={tick} className="bg-[#0f1025]">{tick}</option> })
+                }
+              </select>
+            </div>
+            <span className="text-slate-500 text-sm font-bold">vs</span>
+            {/* Hisse 2 */}
+            <div className="flex flex-col gap-1">
+              <input type="text" placeholder="Ara hisse 2..." value={compareSearch2} onChange={e => setCompareSearch2(e.target.value)}
+                className="bg-[#0f1025] border border-cyan-500/30 rounded-lg px-2 py-1 text-[10px] text-slate-300 w-32 focus:outline-none" />
+              <select value={macroCompany2} onChange={e => { setMacroCompany2(e.target.value); setCompareSearch2('') }}
+                className="bg-[#0f1025] border border-cyan-500/50 rounded-xl px-3 py-1.5 text-xs text-white focus:outline-none w-40">
+                <option value="TÜMÜ">Tüm Şirketler</option>
+                {(allStocksForCompare.length > 0 ? allStocksForCompare : tickers.map(t => ({ ticker: t, name: t })))
+                  .filter(s => {
+                    const tick = (s.ticker || '').replace('.IS', '')
+                    const q = compareSearch2.toLowerCase()
+                    return !q || tick.toLowerCase().includes(q) || (s.name || '').toLowerCase().includes(q)
+                  })
+                  .map(s => { const tick = (s.ticker||'').replace('.IS',''); return <option key={tick} value={tick} className="bg-[#0f1025]">{tick}</option> })
+                }
+              </select>
+            </div>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+          {[
+            { id: 'cds', label: 'Ülke Risk Primi (CDS)', val: macroCountry === 'TR' ? `${cds || 295} bps` : macroCountry === 'US' ? '35 bps' : '65 bps', desc: 'Yabancı yatırımcı güveni', color: macroCountry === 'TR' ? 'rose' : 'emerald' },
+            { id: 'faiz', label: 'Politika Faizi', val: macroCountry === 'TR' ? `%${(interest || 50).toFixed(2)}` : macroCountry === 'US' ? '%5.25' : '%4.00', desc: 'Borçlanma maliyeti', color: 'purple' },
+            { id: 'enflasyon', label: 'Enflasyon (TÜFE)', val: macroCountry === 'TR' ? `%${(interest || 50).toFixed(1)}` : macroCountry === 'US' ? '%3.1' : '%2.8', desc: 'Fiyat istikrarı', color: macroCountry === 'TR' ? 'yellow' : 'cyan' },
+            { id: 'vix', label: 'Küresel Volatilite (VIX)', val: `${vix || 18.2}`, desc: 'Küresel korku seviyesi', color: 'emerald' },
+          ].map(m => (
+            <div key={m.id} className="glass-card !p-5 relative overflow-hidden group">
+              <div className={`absolute top-0 right-0 w-24 h-24 bg-${m.color}-500/5 rounded-full blur-2xl group-hover:bg-${m.color}-500/10 transition-colors`}></div>
+              <p className="text-[10px] uppercase font-bold text-slate-500 tracking-wider mb-2">{m.label}</p>
+              <p className={`text-3xl font-bold font-mono text-${m.color}-400 mb-1`}>{m.val}</p>
+              <p className="text-xs text-slate-400">{m.desc}</p>
+              {/* Hisse 1 etkisi */}
+              {macroCompany !== 'TÜMÜ' && (
+                <div className="mt-3 pt-2 border-t border-white/5">
+                  <div className="flex items-center justify-between text-[10px]">
+                    <span className="text-purple-400 font-bold">{macroCompany}:</span>
+                    <span className={`font-bold ${m.id === 'faiz' && macroCountry === 'TR' ? 'text-rose-400' : m.id === 'cds' && macroCountry === 'TR' ? 'text-yellow-400' : 'text-emerald-400'}`}>
+                      {m.id === 'faiz' && macroCountry === 'TR' ? 'Yüksek Borç Maliyeti (-)' : m.id === 'cds' && macroCountry === 'TR' ? 'Gecikmeli Giriş' : 'Pozitif Koruma (+)'}
+                    </span>
+                  </div>
+                </div>
+              )}
+              {/* Hisse 2 etkisi */}
+              {macroCompany2 !== 'TÜMÜ' && (
+                <div className="mt-1 pt-1 border-t border-white/5">
+                  <div className="flex items-center justify-between text-[10px]">
+                    <span className="text-cyan-400 font-bold">{macroCompany2}:</span>
+                    <span className={`font-bold ${m.id === 'faiz' && macroCountry === 'TR' ? 'text-orange-400' : 'text-sky-400'}`}>
+                      {m.id === 'faiz' ? 'Kredi Riski Artıyor' : m.id === 'cds' ? 'Yabancı Kaçışı Riski' : 'Temkinli Değerlendirin'}
+                    </span>
+                  </div>
+                </div>
+              )}
+            </div>
+          ))}
         </div>
       </div>
     </div>

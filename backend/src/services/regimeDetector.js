@@ -59,9 +59,11 @@ export function detectRegime(priceData) {
   const annualVol = rollingVolatility(returns, 20);
   const recentReturn20 = returns.slice(-20).reduce((a, b) => a + b, 0);
 
-  // Emission probabilities
+  // Emission probabilities - v2.0: Daha geniş sigma ile ölçeklendir
+  // Sorun: sigmaDaily çok dar (0.007-0.028), Gaussian çok keskin
+  // Çözüm: sigmaDaily'yi 2x genişlet, rejimler arası geçiş yumuşat
   const emissionProbs = REGIME_PARAMS.map(r => {
-    const sigmaDaily = r.sigmaAnnual / Math.sqrt(252);
+    const sigmaDaily = (r.sigmaAnnual / Math.sqrt(252)) * 2.5; // 2.5x genişlet
     return gaussianPdf(recentReturn20 / 20, r.muDaily, sigmaDaily);
   });
 

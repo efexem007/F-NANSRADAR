@@ -1,10 +1,21 @@
 // src/utils/formatters.js
 export const formatCurrency = (value) => {
-  if (value === null || value === undefined) return '-';
+  if (value === null || value === undefined || isNaN(value)) return '-';
   return new Intl.NumberFormat('tr-TR', {
     style: 'currency',
     currency: 'TRY',
     minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  }).format(value);
+};
+
+export const formatCompactCurrency = (value) => {
+  if (value === null || value === undefined || isNaN(value)) return '-';
+  return new Intl.NumberFormat('tr-TR', {
+    style: 'currency',
+    currency: 'TRY',
+    notation: 'compact',
+    maximumFractionDigits: 1,
   }).format(value);
 };
 

@@ -1,0 +1,45 @@
+{
+    "keep": {
+        "days": true,
+        "amount": 14
+    },
+    "auditLog": "logs\\.fb82a31312d0b887e80584780a9b5fe71f81dc9a-audit.json",
+    "files": [
+        {
+            "date": 1776343921065,
+            "name": "logs\\finansradar-2026-04-16.log",
+            "hash": "a42390cf91340068be5f3a5dd775c40f97a2e66aea9782a3e219230d17a6eee8"
+        },
+        {
+            "date": 1776415687218,
+            "name": "logs\\finansradar-2026-04-17.log",
+            "hash": "cc91d53439b04274f566f9f9429fa2adef0a6b3a008c9b043e8b6d6f38e877bb"
+        },
+        {
+            "date": 1776494438679,
+            "name": "logs\\finansradar-2026-04-18.log",
+            "hash": "a4793a179c88f5e9a168385e10a730029edcdd8d52710314f9fb81f269eb48c6"
+        },
+        {
+            "date": 1776585600279,
+            "name": "logs\\finansradar-2026-04-19.log",
+            "hash": "7494982068433dbe0ad63273e10427fa266e8051e0e7311bef4a3088f1bb8ebf"
+        },
+        {
+            "date": 1776724354699,
+            "name": "logs\\finansradar-2026-04-21.log",
+            "hash": "b301e3ae0e15594c3263bcb02a8cf4f17986bda7f684073157779145a6b4c846"
+        },
+        {
+            "date": 1776844695520,
+            "name": "logs\\finansradar-2026-04-22.log",
+            "hash": "e3da473d7c12df8b467e002322baa3eeae45e2a7a3033f5b9aff8d7e926bef77"
+        },
+        {
+            "date": 1776948300170,
+            "name": "logs\\finansradar-2026-04-23.log",
+            "hash": "cb900cb57e3997765342fe01c4079288b71b25675fa156182f0b5c3c963c69c7"
+        }
+    ],
+    "hashType": "sha256"
+}

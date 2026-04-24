@@ -1,0 +1,28 @@
+openapi: 3.0.0
+info:
+  title: FinansRadar API
+  version: 1.0.0
+  description: API Documentation for FinansRadar platform
+servers:
+  - url: http://localhost:3001/api
+
+paths:
+  /health:
+    get:
+      summary: Health check
+      responses:
+        '200':
+          description: OK
+
+  /stock/{ticker}:
+    get:
+      summary: Get stock information
+      parameters:
+        - in: path
+          name: ticker
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Successful

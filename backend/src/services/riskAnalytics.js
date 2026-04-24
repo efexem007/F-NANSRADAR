@@ -7,13 +7,53 @@
  */
 
 /**
- * GARCH(1,1) Volatilite Tahmini
- * Varsayılan parametreler BIST için kalibre (α+β=0.95 → yüksek persistans)
+ * GARCH(1,1) parametre kalibrasyonu - Veriye dayalı tahmin (v2.0)
+ * Moment-based yaklaşım ile alpha/beta tahmini
  */
-export function garch11(returns, omega = 0.000001, alpha = 0.08, beta = 0.91) {
+function calibrateGarchParams(returns) {
+  if (returns.length < 40) return { omega: 0.000001, alpha: 0.08, beta: 0.91 }; // Fallback
+
+  // Basit kalibrasyon: ARCH(1) regresyonu
+  const n = returns.length;
+  const squaredReturns = returns.map(r => r * r);
+  
+  // E[r²_t] = omega + alpha * r²_{t-1} + beta * E[r²_{t-1}]
+  // Moment-based: E[r²] ve autocorrelation kullan
+  const meanSq = squaredReturns.reduce((a, b) => a + b, 0) / n;
+  
+  // r²'nin kendi gecikmesiyle korelasyonu (lag-1 autocorrelation)
+  let cov = 0, varSq = 0;
+  for (let i = 1; i < n; i++) {
+    cov += (squaredReturns[i] - meanSq) * (squaredReturns[i - 1] - meanSq);
+    varSq += (squaredReturns[i - 1] - meanSq) ** 2;
+  }
+  const rho1 = varSq > 0 ? cov / varSq : 0;
+  
+  // alpha ≈ rho1 (ARCH etkisi)
+  // beta ≈ 0.95 - alpha (typical financial persistence)
+  let alpha = Math.max(0.02, Math.min(0.20, Math.abs(rho1)));
+  let beta = Math.max(0.70, Math.min(0.97 - alpha, 0.95 - alpha * 0.5));
+  
+  // omega = mean(r²) * (1 - alpha - beta)
+  const persistence = alpha + beta;
+  let omega = meanSq * Math.max(0.001, 1 - persistence);
+  
+  return { omega, alpha, beta };
+}
+
+/**
+ * GARCH(1,1) Volatilite Tahmini - v2.0 Kalibre edilmiş parametreler
+ * σ²_t = ω + α·ε²_{t-1} + β·σ²_{t-1}
+ */
+export function garch11(returns, omega = null, alpha = null, beta = null) {
   if (returns.length < 20) return { sigma: null, halfLife: null, persistence: null };
 
-  const persistence = alpha + beta; // < 1 zorunlu
+  // v2.0: Parametreler verilmediyse kalibre et
+  const params = (omega == null || alpha == null || beta == null)
+    ? calibrateGarchParams(returns)
+    : { omega, alpha, beta };
+
+  const persistence = params.alpha + params.beta;
   const halfLife = persistence < 1 ? Math.round(Math.log(0.5) / Math.log(persistence)) : 999;
 
   // Başlangıç volatilite: örneklem varyansı
@@ -21,7 +61,7 @@ export function garch11(returns, omega = 0.000001, alpha = 0.08, beta = 0.91) {
 
   const sigmas = [];
   for (const r of returns) {
-    sigma2 = omega + alpha * r * r + beta * sigma2;
+    sigma2 = params.omega + params.alpha * r * r + params.beta * sigma2;
     sigmas.push(Math.sqrt(Math.max(0, sigma2)));
   }
 
@@ -39,7 +79,8 @@ export function garch11(returns, omega = 0.000001, alpha = 0.08, beta = 0.91) {
     persistence: parseFloat(persistence.toFixed(3)),
     halfLife,
     volRegime,
-    comment: `GARCH volatilite: ${(annualSigma * 100).toFixed(1)}% yıllık | Persistans: ${persistence.toFixed(3)} | Yarı ömür: ${halfLife} gün | Rejim: ${volRegime}`
+    params: { omega: params.omega, alpha: params.alpha, beta: params.beta },
+    comment: `GARCH volatilite: ${(annualSigma * 100).toFixed(1)}% yıllık | α=${params.alpha.toFixed(3)} β=${params.beta.toFixed(3)} | Persistans: ${persistence.toFixed(3)} | Yarı ömür: ${halfLife} gün | Rejim: ${volRegime}`
   };
 }
 
@@ -101,7 +142,14 @@ export function hillEstimator(returns, k = 20) {
  */
 export function calcRiskReport(priceData) {
   if (!priceData || priceData.length < 30) {
-    return { error: 'Risk analizi için yeterli veri yok (min 30 gün)' };
+    return {
+      garch: { sigma: null, annualSigma: null, persistence: null, halfLife: null, volRegime: 'Bilinmiyor' },
+      var95: null, var99: null, cvar95: null,
+      xi: 0.2, tailRisk: { level: 'Bilinmiyor', score: 50, color: 'gray' },
+      maxDrawdown: 0, sharpe: 0, riskScore: 50,
+      comment: 'Risk analizi için yeterli veri yok (min 30 gün)',
+      error: 'Risk analizi için yeterli veri yok (min 30 gün)'
+    };
   }
 
   const returns = [];

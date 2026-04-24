@@ -41,6 +41,8 @@ export function calcInverseVolatilityWeight(priceDataMap) {
   return weights;
 }
 
+export const optimizePortfolio = calcInverseVolatilityWeight;
+
 /**
  * Cluster varyansı hesapla (HRP adımı)
  * V = Σ w_i² * σ_i² (bağımsız varlıklar varsayımı)

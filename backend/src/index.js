@@ -5,6 +5,9 @@ import dotenv from 'dotenv';
 import { createServer } from 'http';
 import { Server as SocketIO } from 'socket.io';
 import cron from 'node-cron';
+import swaggerUi from 'swagger-ui-express';
+import YAML from 'yamljs';
+
 
 import authRoutes      from './routes/auth.js';
 import portfolioRoutes from './routes/portfolio.js';
@@ -17,13 +20,16 @@ import reportRoutes    from './routes/report.js';
 import backtestRoutes  from './routes/backtest.js';
 import scanRoutes      from './routes/scan.js';
 import universalRoutes from './routes/universal.js';
+import watchlistRoutes from './routes/watchlist.js';
 
 import aiRoutes        from './routes/ai.js';
 import predictionRoutes from './routes/prediction.js';
 import analysisRoutes   from './routes/analysis.js';
 import adminCacheRoutes from './routes/admin/cache.js';
+import batchRoutes      from './routes/batch.js';
+import openaiRoutes    from './routes/openai.js';
 
-import { defaultLimiter, authLimiter, stockLimiter, scanLimiter, macroLimiter, reportLimiter, universalLimiter } from './middleware/smartRateLimit.js';
+import { defaultLimiter, authLimiter, stockLimiter, scanLimiter, macroLimiter, reportLimiter, universalLimiter, portfolioLimiter, watchlistLimiter } from './middleware/smartRateLimit.js';
 import { errorHandler, notFoundHandler } from './middleware/errorHandler.js';
 import { httpLogger } from './lib/logger.js';
 import logger from './lib/logger.js';
@@ -35,6 +41,17 @@ dotenv.config();
 // ─── Express App ──────────────────────────────────────────────────────────
 const app  = express();
 const PORT = process.env.PORT || 3001;
+
+// ─── Crash Prevention (EOF/Target Closed Koruması) ────────────────────────
+process.on('uncaughtException', (err) => {
+  console.error('[CRITICAL] Uncaught Exception:', err.message);
+  // Sistemi kapatma, arka planda logla
+});
+
+process.on('unhandledRejection', (reason, promise) => {
+  console.error('[CRITICAL] Unhandled Rejection:', reason);
+  // Sistemi kapatma, arka planda logla
+});
 
 // ─── Security Middleware ──────────────────────────────────────────────────
 app.use(helmet({
@@ -53,7 +70,7 @@ app.use(defaultLimiter);
 
 // ─── Routes (endpoint bazlı rate limit) ──────────────────────────────────
 app.use('/api/auth',      authLimiter,      authRoutes);
-app.use('/api/portfolio',                   portfolioRoutes);
+app.use('/api/portfolio', portfolioLimiter, portfolioRoutes);
 app.use('/api/stock',     stockLimiter,     stockRoutes);
 app.use('/api/signal',                      signalRoutes);
 app.use('/api/sync',                        syncRoutes);
@@ -63,11 +80,22 @@ app.use('/api/report',    reportLimiter,    reportRoutes);
 app.use('/api/backtest',                    backtestRoutes);
 app.use('/api/scan',      scanLimiter,      scanRoutes);
 app.use('/api/universal', universalLimiter, universalRoutes);
+app.use('/api/watchlist', watchlistLimiter, watchlistRoutes);
 
 app.use('/api/ai',                          aiRoutes);
 app.use('/api/prediction',                  predictionRoutes);
 app.use('/api/analysis',                    analysisRoutes);
 app.use('/api/admin/cache',                 adminCacheRoutes);
+app.use('/api/batch',                        batchRoutes);
+app.use('/api/openai',                      openaiRoutes);
+
+// ─── API Documentation (Swagger) ──────────────────────────────────────────
+try {
+  const swaggerDocument = YAML.load('./swagger.yaml');
+  app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerDocument));
+} catch (e) {
+  console.log('Swagger dosyası yüklenemedi, API-docs devre dışı.');
+}
 
 // ─── Health Check ────────────────────────────────────────────────────────
 app.get('/api/health', (req, res) => {
@@ -138,6 +166,47 @@ cron.schedule('0 9,13,18 * * 1-5', async () => {
 cron.schedule('0 2 * * *', async () => {
   await cache.deleteCachePattern('*');
   logger.info('Gece cache temizlendi');
+});
+
+// 🤖 OTONOM YAPAY ZEKA AJANI 🤖
+// BIST kapanışından sonra her hafta içi akşam 18:30'da çalışır
+cron.schedule('30 18 * * 1-5', async () => {
+  logger.info('🤖 Otonom Ajan uyandı: Tüm piyasa otomatik olarak taranıyor (GÜN SONU).');
+  try {
+    const { createRequire } = await import('module');
+    const require2 = createRequire(import.meta.url);
+    const bistMaster = require2('./data/bistMaster.json');
+    const { analyzeStock } = await import('./services/analysis.js');
+
+    const allTickers = [...(bistMaster.bist30 || [])];
+    const uniqueTickers = [...new Set(allTickers)]; // Şimdilik BIST30 ile test (hız için)
+
+    let strongBuys = [];
+
+    for (let symbol of uniqueTickers) {
+      try {
+        const result = await analyzeStock(`${symbol}.IS`);
+        if (result.signal === 'GÜÇLÜ AL' || result.signal === 'GUCLU AL') {
+          strongBuys.push({ symbol, score: result.finalScore, price: result.currentPrice });
+        }
+      } catch(e) { }
+      // Rate limit koruması
+      await new Promise(r => setTimeout(r, 1000));
+    }
+
+    if (strongBuys.length > 0) {
+      logger.info(`📧 OTONOM BİLDİRİM SİSTEMİ: ${strongBuys.length} adet GÜÇLÜ AL fırsatı tespit edildi!`);
+      // TODO: Gerçek NodeMailer veya Telegram Botu tetiklemesi burada yapılabilir:
+      // sendEmail(user.email, "Günün Fırsatları", compileTemplate(strongBuys));
+      console.log('------------ GÜNÜN FIRSATLARI ------------');
+      strongBuys.forEach(s => console.log(`🚀 ${s.symbol} - Skor: ${s.score}/100 - Fiyat: ₺${s.price}`));
+      console.log('------------------------------------------');
+    } else {
+      logger.info('🤖 Otonom Ajan: Bugün için yeni GÜÇLÜ AL fırsatı bulunamadı.');
+    }
+  } catch (error) {
+    logger.error('Otonom ajan çalışırken hata ile karşılaştı:', error.message);
+  }
 });
 
 // ─── Startup ──────────────────────────────────────────────────────────────

@@ -82,7 +82,14 @@ class TechnicalAnalysisService {
       macdValues.push(fastEMA - slowEMA);
     }
     
-    const signalLine = ss.mean(macdValues.slice(-signal));
+    // v2.0: Signal line EMA olarak hesaplanmalı, basit mean değil
+    const k = 2 / (signal + 1);
+    let signalEMA = macdValues[0];
+    for (let i = 1; i < macdValues.length; i++) {
+      signalEMA = macdValues[i] * k + signalEMA * (1 - k);
+    }
+    
+    const signalLine = signalEMA;
     const histogram = macdLine - signalLine;
     
     return {

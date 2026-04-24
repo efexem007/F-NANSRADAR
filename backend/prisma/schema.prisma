@@ -40,28 +40,44 @@ model Stock {
   ticker        String   @id
   name          String
   sector        String?
+  industry      String?
+  description   String?
+  type          String   @default("bist")    // bist, forex, crypto, commodity, index
+  exchange      String   @default("IS")      // IS, NYSE, NASDAQ, CCC vs
+  currency      String   @default("TRY")     // TRY, USD, EUR
+  source        String   @default("yahoo")   // yahoo, manual
+  marketCap     Float?
+  isActive      Boolean  @default(true)
   lastPrice     Float?
   lastUpdate    DateTime?
   fundamental   FundamentalData[]
   pricePoints   PricePoint[]
   ratios        StockRatio?
+
+  @@index([sector])
+  @@index([type])
 }
 
 model FundamentalData {
   id                 String   @id @default(uuid())
   stockTicker        String
   period             String
-  currentAssets      Float
-  currentLiabilities Float
+  currentAssets      Float?
+  currentLiabilities Float?
   inventory          Float?
-  totalAssets        Float
-  equity             Float
-  netSales           Float
+  totalAssets        Float?
+  equity             Float?
+  netSales           Float?
+  revenue            Float?
   grossProfit        Float?
   ebitda             Float?
   netProfit          Float?
   netFinancialDebt   Float?
+  totalDebt          Float?
   sharesOutstanding  Float?
+  freeCashFlow       Float?
+  operatingCashFlow  Float?
+  createdAt          DateTime @default(now())
   stock              Stock    @relation(fields: [stockTicker], references: [ticker])
   @@unique([stockTicker, period])
 }
@@ -83,12 +99,22 @@ model StockRatio {
   stockTicker     String   @id
   currentRatio    Float?
   acidTest        Float?
+  quickRatio      Float?
   grossMargin     Float?
+  ebitdaMargin    Float?
   netMargin       Float?
+  operatingMargin Float?
   leverage        Float?
+  leverageRatio   Float?
   nfbToEbitda     Float?
   fk              Float?
   pddd            Float?
+  roe             Float?
+  roa             Float?
+  beta            Float?
+  evToEbitda      Float?
+  evToRevenue     Float?
+  dividendYield   Float?
   calculatedAt    DateTime @default(now())
   stock           Stock    @relation(fields: [stockTicker], references: [ticker])
 }
@@ -111,6 +137,7 @@ model SignalHistory {
   details     String?  // JSON string formatında alt skorlar (Teknik, Temel vb.)
   createdAt   DateTime @default(now())
   @@index([ticker, createdAt])
+  @@index([score])
 }
 
 model TechnicalIndicator {
@@ -210,4 +237,21 @@ model StockAnalysis {
   updatedAt     DateTime  @updatedAt
   
   @@map("stock_analyses")
+}
+model MonteCarloResult {
+  id              Int      @id @default(autoincrement())
+  symbol          String
+  method          String   // monte_carlo_mjd_garch
+  days            Int
+  simulations     Int
+  currentPrice    Float
+  predictedPrice  Float
+  confidenceP5    Float
+  confidenceP25   Float
+  confidenceP75   Float
+  confidenceP95   Float
+  modelParams     String?  // SQLite json string fallback // {jumpIntensity, jumpMean, garch: {...}}
+  createdAt       DateTime @default(now())
+
+  @@index([symbol, createdAt])
 }

@@ -26,9 +26,9 @@ router.get('/:symbol/indicators', asyncHandler(async (req, res) => {
       default: startDate.setFullYear(now.getFullYear() - 1);
     }
 
-    const prices = await prisma.stockPrice.findMany({
+    const prices = await prisma.pricePoint.findMany({
       where: {
-        stock: { symbol: upperSymbol },
+        stockTicker: upperSymbol,
         date: { gte: startDate },
       },
       orderBy: { date: 'asc' },
@@ -79,9 +79,9 @@ router.get('/:symbol/trend', asyncHandler(async (req, res) => {
       default: startDate.setFullYear(now.getFullYear() - 1);
     }
 
-    const prices = await prisma.stockPrice.findMany({
+    const prices = await prisma.pricePoint.findMany({
       where: {
-        stock: { symbol: upperSymbol },
+        stockTicker: upperSymbol,
         date: { gte: startDate },
       },
       orderBy: { date: 'asc' },
@@ -154,9 +154,9 @@ router.get('/:symbol/levels', asyncHandler(async (req, res) => {
       default: startDate.setFullYear(now.getFullYear() - 1);
     }
 
-    const prices = await prisma.stockPrice.findMany({
+    const prices = await prisma.pricePoint.findMany({
       where: {
-        stock: { symbol: upperSymbol },
+        stockTicker: upperSymbol,
         date: { gte: startDate },
       },
       orderBy: { date: 'asc' },
@@ -202,9 +202,9 @@ router.get('/:symbol/signals', asyncHandler(async (req, res) => {
   const cacheKey = `analysis:signals:${upperSymbol}`;
 
   const data = await cache.getOrSet(cacheKey, async () => {
-    const prices = await prisma.stockPrice.findMany({
+    const prices = await prisma.pricePoint.findMany({
       where: {
-        stock: { symbol: upperSymbol },
+        stockTicker: upperSymbol,
         date: { gte: new Date(Date.now() - 365 * 24 * 60 * 60 * 1000) },
       },
       orderBy: { date: 'asc' },
@@ -266,9 +266,9 @@ router.post('/compare', asyncHandler(async (req, res) => {
   const comparison = await Promise.all(
     symbols.map(async (symbol) => {
       const upperSymbol = symbol.toUpperCase();
-      const prices = await prisma.stockPrice.findMany({
+      const prices = await prisma.pricePoint.findMany({
         where: {
-          stock: { symbol: upperSymbol },
+          stockTicker: upperSymbol,
           date: { gte: new Date(Date.now() - 180 * 24 * 60 * 60 * 1000) },
         },
         orderBy: { date: 'asc' },

@@ -15,6 +15,7 @@ import Macro from './pages/Macro'
 import Settings from './pages/Settings'
 import StockDetail from './pages/StockDetail'
 import Scanner from './pages/Scanner'
+import AllStocks from './pages/AllStocks'
 
 function AnimatedRoutes() {
   const location = useLocation()
@@ -36,6 +37,7 @@ function AnimatedRoutes() {
               <Route path="/scanner" element={<Scanner />} />
               <Route path="/settings" element={<Settings />} />
               <Route path="/stock/:ticker" element={<StockDetail />} />
+              <Route path="/stocks" element={<AllStocks />} />
               <Route path="*" element={<Navigate to="/" replace />} />
             </Route>
           </Route>

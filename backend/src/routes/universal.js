@@ -23,6 +23,144 @@ router.get('/scan', asyncHandler(async (req, res) => {
   res.json(result);
 }));
 
+// ─── Canlı tarama (SSE - Server Sent Events) ────────────────────────
+router.get('/scan-stream', async (req, res) => {
+  // SSE Header ayarları
+  res.writeHead(200, {
+    'Content-Type': 'text/event-stream',
+    'Cache-Control': 'no-cache',
+    'Connection': 'keep-alive',
+    'X-Accel-Buffering': 'no'
+  });
+
+  // ─── Client kopma algılama ───
+  let clientDisconnected = false;
+  req.on('close', () => { clientDisconnected = true; });
+
+  // ─── Güvenli yazma fonksiyonu (bağlantı kopmuşsa sessizce geç) ───
+  const safeSend = (event, data) => {
+    if (clientDisconnected) return false;
+    try {
+      res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
+      return true;
+    } catch (e) {
+      clientDisconnected = true;
+      return false;
+    }
+  };
+
+  // Keep-alive: 12sn'de bir ping (proxy timeout'larına karşı)
+  const keepAliveTimer = setInterval(() => {
+    if (clientDisconnected) { clearInterval(keepAliveTimer); return; }
+    try { res.write(': ping\n\n'); } catch(e) { clientDisconnected = true; clearInterval(keepAliveTimer); }
+  }, 12000);
+
+  // Timeout wrapper (tek hisse max 20sn)
+  const analyzeWithTimeout = (fn, ms = 20000) => Promise.race([
+    fn(),
+    new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout (20s)')), ms))
+  ]);
+
+  const market = req.query.market || 'all';
+  const customSymbolsStr = req.query.symbols;
+  
+  // Filtre parametrelerini al
+  const filters = {
+    timeFrame: req.query.timeFrame || '1D',
+    returnExpectation: parseFloat(req.query.returnExpectation) || 0,
+    riskTolerance: parseFloat(req.query.riskTolerance) || 100,
+  };
+  
+  let totalScanned = 0;
+  let totalSuccess = 0;
+  let totalSkipped = 0;
+
+  try {
+    const { analyzeAsset } = await import('../services/universalScanner.js');
+
+    // ─── Sembol listesini hazırla ───
+    let allSymbols = [];
+
+    if (customSymbolsStr) {
+      // Özel sembol listesi
+      allSymbols = customSymbolsStr.split(',').map(s => s.trim()).filter(s => s).map(sym => {
+        let type = 'bist';
+        if (sym.includes('-USD') || sym.includes('-USDT')) type = 'crypto';
+        else if (sym.includes('=X')) type = 'forex';
+        else if (sym.includes('=F')) type = 'commodity';
+        return { symbol: sym, name: sym, type };
+      });
+    } else {
+      // Standart piyasa evreni
+      const universes = market === 'all' ? Object.keys(ASSET_UNIVERSES) : [market];
+      for (const uniKey of universes) {
+        if (!ASSET_UNIVERSES[uniKey]) continue;
+        if (uniKey === 'bist') {
+          const { default: prisma } = await import('../lib/prisma.js');
+          const dbStocks = await prisma.stock.findMany({ select: { ticker: true, name: true } });
+          allSymbols.push(...dbStocks.map(s => ({ symbol: s.ticker, name: s.name, type: 'bist' })));
+        } else {
+          allSymbols.push(...(ASSET_UNIVERSES[uniKey].symbols || []).map(s => ({ ...s, type: uniKey })));
+        }
+      }
+    }
+
+    const total = allSymbols.length;
+    safeSend('progress', { current: 0, total, text: `${total} varlık taranacak...` });
+
+    // ─── Ana tarama döngüsü (4'lü chunk, her hisse bağımsız) ───
+    const CONCURRENCY = 4;
+    for (let i = 0; i < allSymbols.length; i += CONCURRENCY) {
+      // Client kopmuşsa döngüyü kes
+      if (clientDisconnected) break;
+
+      const chunk = allSymbols.slice(i, i + CONCURRENCY);
+
+      await Promise.allSettled(chunk.map(async (item) => {
+        if (clientDisconnected) return; // Zaten kapandıysa boşuna çalışma
+
+        totalScanned++;
+        try {
+          const analyzed = await analyzeWithTimeout(() => analyzeAsset(item.symbol, item.name, item.type, filters));
+
+          if (analyzed && analyzed.currentPrice > 0) {
+            safeSend('assetAnalyzed', analyzed);
+            totalSuccess++;
+          } else {
+            totalSkipped++;
+            safeSend('assetSkipped', { symbol: item.symbol, reason: 'Fiyat bilgisi alınamadı' });
+          }
+        } catch (err) {
+          totalSkipped++;
+          safeSend('assetSkipped', { symbol: item.symbol, reason: err.message || 'Bilinmeyen hata' });
+        }
+
+        // Her hisseden sonra ilerleme gönder
+        safeSend('progress', { current: totalScanned, total, text: `${totalScanned}/${total} tarandı` });
+      }));
+
+      // Rate limit koruması: her 4 hisseden sonra 350ms bekle
+      if (!clientDisconnected) {
+        await new Promise(r => setTimeout(r, 350));
+      }
+    }
+  } catch (fatalErr) {
+    console.error('[SSE FATAL]:', fatalErr.message);
+    safeSend('error', { message: fatalErr.message });
+  } finally {
+    clearInterval(keepAliveTimer);
+    safeSend('done', { 
+      message: 'Tarama tamamlandı!', 
+      totalScanned, 
+      totalSuccess, 
+      totalSkipped 
+    });
+    try { res.end(); } catch(e) {}
+  }
+});
+
+
+
 // ─── AI Önerileri (Scan sonuçlarına göre) ──────────────────────────────
 router.post('/ai-picks', asyncHandler(async (req, res) => {
   const { scanResults } = req.body;

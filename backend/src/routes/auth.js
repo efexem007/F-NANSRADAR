@@ -1,8 +1,11 @@
 ﻿import { Router } from 'express';
+import cors from 'cors';
 import { registerUser, loginUser, verifyToken } from '../services/auth.js';
 import prisma from '../lib/prisma.js';
 import { asyncHandler } from '../lib/asyncHandler.js';
 const router = Router();
+
+router.use(cors());
 
 router.post('/register', asyncHandler(async (req, res) => {
   const result = await registerUser(req.body.email, req.body.password, req.body.name);

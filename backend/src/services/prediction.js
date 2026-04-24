@@ -12,10 +12,12 @@
  *   Momentum: RSI + MACD Histogram yönü
  */
 
+import { GARCHModel } from './volatilityModel.js';
+
 /**
  * Normal dağılımdan rastgele sayı (Box-Muller transform)
  */
-function randn() {
+export function randn() {
   let u = 0, v = 0;
   while (u === 0) u = Math.random();
   while (v === 0) v = Math.random();
@@ -119,8 +121,25 @@ export function predictWeekly(priceData, days = 7) {
   const n = finalPrices.length;
 
   // Günlük tahmin noktaları (percentiller)
-  const dailyPredictions = [];
+  // v2.0: Tek simülasyonda hem finalPrices hem dailyPredictions hesapla
+  // Günlük fiyatları toplamak için matris: [simülasyon][gün]
+  const allPaths = Array.from({ length: nSim }, () => [currentPrice]);
   const today = new Date();
+
+  for (let s = 0; s < nSim; s++) {
+    let price = currentPrice;
+    for (let d = 1; d <= days; d++) {
+      const shock = randn();
+      price = price * Math.exp((adjustedMu - 0.5 * sigmaDaily * sigmaDaily) + sigmaDaily * shock);
+      allPaths[s][d] = price;
+    }
+  }
+
+  // Final fiyatlar (duplicate declaration fixed)
+  const sortedFinalPrices = allPaths.map(p => p[p.length - 1]).sort((a, b) => a - b);
+
+  // Günlük tahminler (tüm simülasyonlardan percentiller)
+  const dailyPredictions = [];
   for (let d = 0; d <= days; d++) {
     const date = new Date(today);
     date.setDate(date.getDate() + d);
@@ -136,16 +155,7 @@ export function predictWeekly(priceData, days = 7) {
       });
       continue;
     }
-    // Her gün için simülasyonlardan percentil hesapla
-    const dayPrices = [];
-    for (let s = 0; s < nSim; s++) {
-      let p = currentPrice;
-      for (let dd = 0; dd < d; dd++) {
-        p = p * Math.exp((adjustedMu - 0.5 * sigmaDaily * sigmaDaily) + sigmaDaily * randn());
-      }
-      dayPrices.push(p);
-    }
-    dayPrices.sort((a, b) => a - b);
+    const dayPrices = allPaths.map(p => p[d]).sort((a, b) => a - b);
     const dn = dayPrices.length;
     dailyPredictions.push({
       date: date.toISOString().split('T')[0],
@@ -158,7 +168,7 @@ export function predictWeekly(priceData, days = 7) {
     });
   }
 
-  const medianFinal = finalPrices[Math.floor(n * 0.50)];
+  const medianFinal = sortedFinalPrices[Math.floor(n * 0.50)];
   const changePct = ((medianFinal - currentPrice) / currentPrice) * 100;
 
   return {
@@ -169,14 +179,14 @@ export function predictWeekly(priceData, days = 7) {
     target: parseFloat(medianFinal.toFixed(2)),
     changePct: parseFloat(changePct.toFixed(2)),
     range: {
-      lower5: parseFloat(finalPrices[Math.floor(n * 0.05)].toFixed(2)),
-      lower25: parseFloat(finalPrices[Math.floor(n * 0.25)].toFixed(2)),
+      lower5: parseFloat(sortedFinalPrices[Math.floor(n * 0.05)].toFixed(2)),
+      lower25: parseFloat(sortedFinalPrices[Math.floor(n * 0.25)].toFixed(2)),
       median: parseFloat(medianFinal.toFixed(2)),
-      upper75: parseFloat(finalPrices[Math.floor(n * 0.75)].toFixed(2)),
-      upper95: parseFloat(finalPrices[Math.floor(n * 0.95)].toFixed(2)),
+      upper75: parseFloat(sortedFinalPrices[Math.floor(n * 0.75)].toFixed(2)),
+      upper95: parseFloat(sortedFinalPrices[Math.floor(n * 0.95)].toFixed(2)),
     },
-    probabilityUp: parseFloat(((finalPrices.filter(p => p > currentPrice).length / n) * 100).toFixed(1)),
-    confidence: parseFloat((100 - Math.abs(changePct) * 2).toFixed(1)),
+    probabilityUp: parseFloat(((sortedFinalPrices.filter(p => p > currentPrice).length / n) * 100).toFixed(1)),
+    confidence: parseFloat(Math.max(0, Math.min(100, 100 - Math.abs(changePct) * 1.5)).toFixed(1)),
     momentum: { rsi: parseFloat(rsi.toFixed(1)), zScore: parseFloat(zScore.toFixed(2)), driftBias: parseFloat(driftBias.toFixed(5)) },
     dailyPredictions,
     method: 'Momentum + Mean-Reversion + Monte Carlo (1000 sim)',
@@ -645,4 +655,205 @@ export function generateFullPredictions(priceData) {
     },
     generatedAt: new Date().toISOString(),
   };
+}
+
+// v6.0-F-NANSRADAR Gelistirme - MJD + GARCH
+
+const TIME_FRAMES = {
+  '1H': { dt: 1 / (252 * 6.5), label: '1Saat', daysMultiplier: 1 / 6.5 },
+  '4H': { dt: 4 / (252 * 6.5), label: '4Saat', daysMultiplier: 4 / 6.5 },
+  '1D': { dt: 1 / 252, label: '1Gun', daysMultiplier: 1 },
+  '1W': { dt: 5 / 252, label: '1Hafta', daysMultiplier: 5 }
+};
+
+export function estimateJumpParams(returns) {
+  const mean = returns.reduce((a, b) => a + b, 0) / returns.length;
+  const std = Math.sqrt(returns.reduce((a, b) => a + (b - mean) ** 2, 0) / returns.length);
+  const jumpThreshold = 2 * std;
+  const jumps = returns.filter(r => Math.abs(r - mean) > jumpThreshold);
+  const jumpIntensity = jumps.length / returns.length;
+  const jumpMean = jumps.length > 0 ? jumps.reduce((a, b) => a + b, 0) / jumps.length : 0;
+  const jumpStd = jumps.length > 0
+    ? Math.sqrt(jumps.reduce((a, b) => a + (b - jumpMean) ** 2, 0) / jumps.length)
+    : 0;
+  return { jumpIntensity, jumpMean, jumpStd };
+}
+
+export function simulateMJD(S0, mu, sigma, days, nSim, jumpParams) {
+  const { jumpIntensity, jumpMean, jumpStd } = jumpParams;
+  const dt = 1 / 252;
+  const paths = [];
+
+  for (let s = 0; s < nSim; s++) {
+    let price = S0;
+    const path = [price];
+    for (let d = 0; d < days; d++) {
+      const dW = randn() * Math.sqrt(dt);
+      const diffusion = (mu - 0.5 * sigma ** 2) * dt + sigma * dW;
+      const jumpOccur = Math.random() < jumpIntensity;
+      const jumpSize = jumpOccur ? (jumpMean + jumpStd * randn()) : 0;
+      price = price * Math.exp(diffusion + jumpSize);
+      path.push(Math.max(price, 0.001));
+    }
+    paths.push(path);
+  }
+  return paths;
+}
+
+export function simulateWithAntithetic(S0, mu, sigma, days, nPairs, jumpParams) {
+  const paths = [];
+  const { jumpIntensity, jumpMean, jumpStd } = jumpParams;
+
+  for (let pair = 0; pair < nPairs; pair++) {
+    let price1 = S0, price2 = S0;
+    const path1 = [price1], path2 = [price2];
+
+    for (let d = 0; d < days; d++) {
+      const u = randn();
+      for (const [path, z] of [[path1, u], [path2, -u]]) {
+        const dt = 1 / 252;
+        const diffusion = (mu - 0.5 * sigma ** 2) * dt + sigma * z * Math.sqrt(dt);
+        const jump = Math.random() < jumpIntensity ? (jumpMean + jumpStd * randn()) : 0;
+        const newPrice = path[path.length - 1] * Math.exp(diffusion + jump);
+        path.push(Math.max(newPrice, 0.0001));
+      }
+    }
+    paths.push(path1, path2);
+  }
+  return paths;
+}
+
+export function calculateFullPercentiles(paths) {
+  const days = paths[0].length;
+  const percentiles = {};
+  for (let d = 0; d < days; d++) {
+    const dayPrices = paths.map(p => p[d]).sort((a, b) => a - b);
+    const n = dayPrices.length;
+    percentiles[d] = {};
+    for (let pct = 1; pct <= 99; pct++) {
+      const idx = Math.floor(n * pct / 100);
+      percentiles[d][pct] = parseFloat(dayPrices[Math.min(idx, n - 1)].toFixed(4));
+    }
+  }
+  return percentiles;
+}
+
+export function selectRepresentativePaths(paths) {
+  const finalPrices = paths.map((p, i) => ({ index: i, final: p[p.length - 1] }));
+  finalPrices.sort((a, b) => a.final - b.final);
+  const n = finalPrices.length;
+  return {
+    worst: paths[finalPrices[0].index],
+    p10: paths[finalPrices[Math.floor(n * 0.1)].index],
+    median: paths[finalPrices[Math.floor(n * 0.5)].index],
+    p90: paths[finalPrices[Math.floor(n * 0.9)].index],
+    best: paths[finalPrices[n - 1].index]
+  };
+}
+
+export function calculatePriceDistribution(paths, targetDateIndex) {
+  const finalPrices = paths.map(p => p[targetDateIndex]);
+  const min = Math.min(...finalPrices);
+  const max = Math.max(...finalPrices);
+  const nBins = 50;
+  const binWidth = (max - min) / nBins;
+  const distribution = [];
+
+  for (let i = 0; i < nBins; i++) {
+    const binStart = min + i * binWidth;
+    const binEnd = binStart + binWidth;
+    const count = finalPrices.filter(p => p >= binStart && p < binEnd).length;
+    distribution.push({
+      price: parseFloat((binStart + binWidth / 2).toFixed(4)),
+      probability: parseFloat((count / finalPrices.length * 100).toFixed(2)),
+      count
+    });
+  }
+  return distribution;
+}
+
+export function calculatePathStatistics(paths) {
+  const stats = paths.map(path => {
+    const returns = [];
+    for (let i = 1; i < path.length; i++) {
+      returns.push(Math.log(path[i] / path[i - 1]));
+    }
+    const mean = returns.reduce((a, b) => a + b, 0) / returns.length;
+    const std = Math.sqrt(returns.reduce((a, b) => a + (b - mean) ** 2, 0) / returns.length);
+    let peak = path[0];
+    let maxDD = 0;
+    for (const price of path) {
+      if (price > peak) peak = price;
+      const dd = (peak - price) / peak;
+      if (dd > maxDD) maxDD = dd;
+    }
+    return {
+      sharpe: mean / (std + 1e-10) * Math.sqrt(252),
+      maxDrawdown: maxDD,
+      finalReturn: (path[path.length - 1] - path[0]) / path[0]
+    };
+  });
+
+  return {
+    avgSharpe: stats.reduce((a, s) => a + s.sharpe, 0) / stats.length,
+    avgMaxDrawdown: stats.reduce((a, s) => a + s.maxDrawdown, 0) / stats.length,
+    probPositive: stats.filter(s => s.finalReturn > 0).length / stats.length
+  };
+}
+
+export function predictWithTimeFrame(priceData, timeFrame = '1D', horizon = 30, useGARCH = true) {
+  try {
+    const tf = TIME_FRAMES[timeFrame] || TIME_FRAMES['1D'];
+    const closes = priceData.map(p => p.close);
+    const returns = [];
+    for (let i = 1; i < closes.length; i++) {
+      returns.push(Math.log(closes[i] / closes[i - 1]));
+    }
+
+    const { mean: mu, std: sigma } = calcStats(returns);
+    const jumpParams = estimateJumpParams(returns);
+    const currentPrice = closes[closes.length - 1];
+
+    const adjustedMu = mu * tf.daysMultiplier;
+    const adjustedSigma = sigma * Math.sqrt(tf.daysMultiplier);
+    const adjustedDays = Math.ceil(horizon / tf.daysMultiplier);
+
+    let sigmaForecasts = null;
+    if (useGARCH) {
+      try {
+        const garch = new GARCHModel();
+        garch.fit(returns);
+        // volatilityModel.js'deki forecast metodunu kullan
+        sigmaForecasts = garch.forecast(returns, adjustedDays);
+      } catch (error) {
+        console.warn('GARCH model uygulanamadı, standart sapma kullanılıyor:', error.message);
+        useGARCH = false;
+      }
+    }
+
+    const paths = simulateMJD(currentPrice, adjustedMu, adjustedSigma, adjustedDays, 5000, jumpParams);
+    const percentiles = calculateFullPercentiles(paths);
+    const representativePaths = selectRepresentativePaths(paths);
+
+    return {
+      timeFrame: tf.label,
+      horizon,
+      simulations: 5000,
+      currentPrice,
+      paths,
+      percentiles,
+      representativePaths,
+      confidenceIntervals: {
+        p5: percentiles[adjustedDays]?.[5],
+        p25: percentiles[adjustedDays]?.[25],
+        p50: percentiles[adjustedDays]?.[50],
+        p75: percentiles[adjustedDays]?.[75],
+        p95: percentiles[adjustedDays]?.[95]
+      },
+      modelParams: { jumpIntensity: jumpParams.jumpIntensity, jumpMean: jumpParams.jumpMean }
+    };
+  } catch (error) {
+    console.error('predictWithTimeFrame hatasi:', error);
+    return { error: error.message, timeFrame, horizon };
+  }
 }

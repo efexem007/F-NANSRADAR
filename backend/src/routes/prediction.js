@@ -6,6 +6,8 @@ import aiLearning from '../services/aiLearningService.js';
 import prisma from '../lib/prisma.js';
 import cache from '../lib/cache.js';
 import logger from '../lib/logger.js';
+import { GARCHModel } from '../services/volatilityModel.js';
+import { estimateJumpParams, simulateMJD, calculateFullPercentiles, calculatePriceDistribution, calculatePathStatistics, selectRepresentativePaths } from '../services/prediction.js';
 
 // Fiyat tahmini (tüm metodlar)
 router.get('/:symbol/comprehensive', asyncHandler(async (req, res) => {
@@ -100,12 +102,12 @@ router.get('/:symbol/technical', asyncHandler(async (req, res) => {
   });
 }));
 
-// Monte Carlo simülasyonu
+// Monte Carlo simülasyonu (v6.0-F-NANSRADAR)
 router.get('/:symbol/montecarlo', asyncHandler(async (req, res) => {
   const { symbol } = req.params;
-  const { days = 30, simulations = 1000 } = req.query;
+  const { days = 30, simulations = 5000, useGARCH = true, timeFrame = '1D' } = req.query;
   const upperSymbol = symbol.toUpperCase();
-  const cacheKey = `prediction:montecarlo:${upperSymbol}:${days}:${simulations}`;
+  const cacheKey = `prediction:montecarlo:${upperSymbol}:${days}:${simulations}:${useGARCH}:${timeFrame}`;
 
   const data = await cache.getOrSet(cacheKey, async () => {
     const prices = await prisma.stockPrice.findMany({
@@ -123,13 +125,54 @@ router.get('/:symbol/montecarlo', asyncHandler(async (req, res) => {
     return predictionService.monteCarloSimulate(
       prices, 
       parseInt(days), 
-      parseInt(simulations)
+      parseInt(simulations),
+      useGARCH === 'true',
+      timeFrame
     );
   }, 600);
 
   res.json({
     success: true,
     data,
+  });
+}));
+
+// Detaylı Monte Carlo raporu (v6.0-F-NANSRADAR)
+router.get('/:symbol/montecarlo/detailed', asyncHandler(async (req, res) => {
+  const { symbol } = req.params;
+  const { days = 30, simulations = 5000 } = req.query;
+  const upperSymbol = symbol.toUpperCase();
+
+  const prices = await prisma.stockPrice.findMany({
+    where: {
+      stock: { symbol: upperSymbol },
+      date: { gte: new Date(Date.now() - 730 * 24 * 60 * 60 * 1000) },
+    },
+    orderBy: { date: 'asc' },
+  });
+
+  if (prices.length < 60) {
+    throw new Error('Yetersiz veri');
+  }
+
+  const garch = new GARCHModel();
+  const returns = prices.slice(1).map((p, i) => Math.log(p.close / prices[i].close));
+  garch.fit(returns);
+
+  const jumpParams = estimateJumpParams(returns);
+  const paths = simulateMJD(prices[prices.length - 1].close, 0, 0.2, parseInt(days), parseInt(simulations), jumpParams);
+  const percentiles = calculateFullPercentiles(paths);
+  const dist = calculatePriceDistribution(paths, parseInt(days));
+  const pathStats = calculatePathStatistics(paths);
+
+  res.json({
+    success: true,
+    data: {
+      priceDistribution: dist,
+      pathStatistics: pathStats,
+      percentiles,
+      representativePaths: selectRepresentativePaths(paths)
+    }
   });
 }));
 
