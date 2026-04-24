@@ -1,7 +1,7 @@
 {
   "version": "1.0.0",
   "lastUpdated": "2026-04-17",
-  "totalStocks": 512,
+    "totalStocks": 513,
   "indices": {
     "XU100": {
       "name": "BIST 100",
@@ -717,6 +717,7 @@
     "SELVA",
     "SEYKM",
     "SILVR",
+    "SISE",
     "SKEAS",
     "SKBNK",
     "SKTAS",
