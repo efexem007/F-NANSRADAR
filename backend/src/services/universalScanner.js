@@ -9,6 +9,10 @@ import { fetchStockPrices } from './yahooFinance.js';
 import { calculateRSI, calculateMACD, calculateSMA, calculateBollinger } from './technical.js';
 import { getMacroData } from './macroData.js';
 import prisma from '../lib/prisma.js';
+import { createRequire } from 'module';
+
+const require = createRequire(import.meta.url);
+const bistMaster = require('../data/bistMaster.json');
 
 // ═══════════════════════════════════════════════════════════════════════════
 // ASSET UNIVERSES
@@ -311,10 +315,13 @@ export async function scanMarket(marketType = 'all', filters = {}) {
 
     let symbols = universe.symbols;
 
-    // BIST hisseler: DB'den al
+    // BIST hisseler: bistMaster.json'dan al (DB yerine)
     if (market === 'bist') {
-      const dbStocks = await prisma.stock.findMany({ select: { ticker: true, name: true } });
-      symbols = dbStocks.map(s => ({ symbol: s.ticker, name: s.name, flag: '🇹🇷' }));
+      symbols = (bistMaster.allBist || []).map(ticker => ({ 
+        symbol: ticker + '.IS', 
+        name: ticker, 
+        flag: '🇹🇷' 
+      }));
     }
 
     for (const item of symbols) {
