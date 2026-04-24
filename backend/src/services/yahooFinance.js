@@ -36,13 +36,36 @@ export const fetchStockPrices = async (ticker, period = '3mo', interval = '1d') 
       case '5y': period1.setFullYear(period1.getFullYear() - 5); break;
       default: period1.setMonth(period1.getMonth() - 3);
     }
-    const chartData = await yahooFinance.chart(query, { period1: period1.toISOString(), interval });
     
-    if (!chartData || !chartData.quotes) return { priceData: [], currentPrice: null };
+    let chartData;
+    try {
+      chartData = await yahooFinance.chart(query, { period1: period1.toISOString(), interval });
+    } catch (e) {
+      if (e.message && e.message.includes('No data found')) {
+        // Retry without .IS if applicable or handle alternate extensions
+        if (query.endsWith('.IS')) {
+          const alternateQuery = query.replace('.IS', ''); // sometimes names are just the ticker, though rare for Yahoo
+          try {
+             chartData = await yahooFinance.chart(alternateQuery, { period1: period1.toISOString(), interval });
+          } catch(err) {
+             throw e; // throw original error
+          }
+        } else {
+          throw e;
+        }
+      } else {
+        throw e;
+      }
+    }
+
+    if (!chartData || !chartData.quotes || chartData.quotes.length === 0) return { priceData: [], currentPrice: null };
     
     const priceData = chartData.quotes
       .filter(item => item.close !== null)
       .map(item => ({ date: item.date, open: item.open, high: item.high, low: item.low, close: item.close, volume: item.volume }));
+
+    if (priceData.length === 0) return { priceData: [], currentPrice: null };
+
     const currentPrice = priceData[priceData.length - 1]?.close || null;
     return { priceData, currentPrice };
   } catch (error) {
