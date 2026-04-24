@@ -464,7 +464,7 @@ export default function AllStocks() {
                 <option value={48}>48</option>
                 <option value={100}>100</option>
                 <option value={250}>250</option>
-                <option value={514}>Tümü (514)</option>
+                <option value={513}>Tümü (513)</option>
               </select>
             </div>
           </div>

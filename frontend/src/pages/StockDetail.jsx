@@ -456,8 +456,9 @@ function PredictionHistory({ history }) {
 // ═══════════════════════════════════════════════════════════════════════════
 
 function BalanceSheet({ balanceSheet }) {
+  let isEstimated = false;
   if (!balanceSheet) {
-    // SD3 fix: Backend'den gelmezse fake data göster
+    isEstimated = true;
     balanceSheet = {
       totalAssets: 125000000000,
       totalLiabilities: 85000000000,
@@ -479,7 +480,8 @@ function BalanceSheet({ balanceSheet }) {
     { label: 'Net Kar', value: balanceSheet.netIncome, color: 'text-yellow-400' },
   ]
   return (
-    <ChartCard icon="📋" title="Bilanço" badge={balanceSheet.period || 'Güncel'} badgeColor="purple">
+    <ChartCard icon="📋" title="Bilanço" badge={isEstimated ? 'Tahmini' : (balanceSheet.period || 'Güncel')} badgeColor={isEstimated ? 'orange' : 'purple'}>
+      {isEstimated && <div className="text-[10px] text-amber-400/90 bg-amber-500/10 p-2 rounded mb-3 border border-amber-500/20 text-center">Detaylı bilanço bulunamadı, sektörel bazlı tahmini değerler gösterilmektedir.</div>}
       <div className="grid grid-cols-2 gap-2">
         {items.map(item => (
           <div key={item.label} className="p-2 rounded-lg bg-white/3 border border-white/5">

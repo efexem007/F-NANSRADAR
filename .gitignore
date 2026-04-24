@@ -10,3 +10,4 @@ backend/prisma/dev.db
 backend/prisma/dev.db-journal
 scratch/
 .fb82a31312d0b887e80584780a9b5fe71f81dc9a-audit.json
+.aider*
