@@ -5,7 +5,43 @@
  * 0-100 arası final skor ve sinyal üretir.
  */
 
-import { calculateRSI, calculateMACD, calculateSMA, calculateEMA, calculateBollinger, calculateATR, calculateStochastic, calculateCCI } from './technical.js';
+import { calculateRSI, calculateMACD, calculateSMA, calculateEMA, calculateBollinger } from './technical.js';
+
+// Fallback implementations for missing functions
+function calculateATR(data, period = 14) {
+  if (!data || data.length < period + 1) return null;
+  const trs = [];
+  for (let i = 1; i < data.length; i++) {
+    const high = data[i].high, low = data[i].low, prevClose = data[i - 1].close;
+    trs.push(Math.max(high - low, Math.abs(high - prevClose), Math.abs(low - prevClose)));
+  }
+  let atr = trs.slice(0, period).reduce((a, b) => a + b, 0) / period;
+  for (let i = period; i < trs.length; i++) {
+    atr = (atr * (period - 1) + trs[i]) / period;
+  }
+  return atr;
+}
+
+function calculateStochastic(data, kPeriod = 14, dPeriod = 3) {
+  if (!data || data.length < kPeriod) return null;
+  const highs = data.slice(-kPeriod).map(d => d.high);
+  const lows = data.slice(-kPeriod).map(d => d.low);
+  const current = data[data.length - 1];
+  const highestHigh = Math.max(...highs);
+  const lowestLow = Math.min(...lows);
+  const range = highestHigh - lowestLow;
+  const k = range > 0 ? ((current.close - lowestLow) / range) * 100 : 50;
+  return { k, d: k };
+}
+
+function calculateCCI(data, period = 20) {
+  if (!data || data.length < period) return null;
+  const tp = data.slice(-period).map(d => (d.high + d.low + d.close) / 3);
+  const sma = tp.reduce((a, b) => a + b, 0) / period;
+  const meanDev = tp.reduce((s, p) => s + Math.abs(p - sma), 0) / period;
+  const lastTP = (data[data.length - 1].high + data[data.length - 1].low + data[data.length - 1].close) / 3;
+  return meanDev > 0 ? (lastTP - sma) / (0.015 * meanDev) : 0;
+}
 import { getMacroData } from './macroData.js';
 import { fetchStockPrices } from './yahooFinance.js';
 
