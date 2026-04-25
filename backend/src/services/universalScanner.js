@@ -7,6 +7,7 @@
 
 import { fetchStockPrices } from './yahooFinance.js';
 import { calculateRSI, calculateMACD, calculateSMA, calculateBollinger } from './technical.js';
+import { analyzeAsset10Step } from './advancedAlgorithm.js';
 import { getMacroData } from './macroData.js';
 import prisma from '../lib/prisma.js';
 import { createRequire } from 'module';
@@ -98,6 +99,19 @@ const TIME_FRAME_MAP = {
 };
 
 export async function analyzeAsset(symbol, name, assetType, filters = {}) {
+  // Use 10-step algorithm for BIST stocks
+  if (assetType === 'bist' || symbol.endsWith('.IS')) {
+    try {
+      return await analyzeAsset10Step(symbol, name, assetType, {
+        timeFrame: filters.timeFrame || '1D',
+        includeFundamental: true,
+      });
+    } catch (e) {
+      console.warn(`[10-Step Algorithm] ${symbol} failed, falling back to classic: ${e.message}`);
+      // Fall through to classic analysis
+    }
+  }
+
   const { timeFrame = '1D' } = filters;
   const tfConfig = TIME_FRAME_MAP[timeFrame] || TIME_FRAME_MAP['1D'];
 

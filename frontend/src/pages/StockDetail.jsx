@@ -7,6 +7,7 @@ import { getColor } from '../constants/colors'
 import { linearRegression, calculateEMA } from '../utils/predictions'
 import ChartCard from '../components/ChartCard'
 import ChartTooltip from '../components/ChartTooltip'
+import LightweightChart from '../components/charts/LightweightChart'
 import { ArrowLeft, RefreshCw, Activity, TrendingUp, TrendingDown, AlertTriangle, BarChart2, Zap, ChevronDown, ChevronRight, Target, Clock, Eye, History, Layers, Shield, X, Info, ShieldCheck, ShieldAlert, ShieldQuestion } from 'lucide-react'
 
 import { SIGNAL_STYLES } from '../constants/colors'
@@ -640,20 +641,9 @@ export default function StockDetail() {
       {/* Charts Row */}
       <div className="grid grid-cols-12 gap-4">
         <div className="col-span-8">
-          <ChartCard icon="📈" title="Fiyat Grafiği">
+          <ChartCard icon="📈" title="Fiyat Grafiği (TradingView)" badge="PRO" badgeColor="ai">
             {analysis?.priceData?.length > 0 ? (
-              <ResponsiveContainer width="100%" height={320}>
-                <ComposedChart data={analysis.priceData} margin={{ top: 5, right: 10, left: 0, bottom: 0 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.04)" vertical={false} />
-                  <XAxis dataKey="date" tick={{ fill: '#64748b', fontSize: 10 }} tickFormatter={(v) => { const d = new Date(v); return `${d.getDate()}/${d.getMonth()+1}` }} />
-                  <YAxis tick={{ fill: '#64748b', fontSize: 10 }} domain={['auto', 'auto']} width={60} tickFormatter={(v) => `₺${v}`} />
-                  <Tooltip content={<ChartTooltip />} />
-                  <Bar dataKey="volume" fill="rgba(139,92,246,0.15)" yAxisId={1} opacity={0.5} />
-                  <Line type="monotone" dataKey="close" stroke="#8b5cf6" strokeWidth={2} dot={false} />
-                  {analysis?.sma20 && <Line type="monotone" dataKey="sma20" stroke="#f59e0b" strokeWidth={1} dot={false} strokeDasharray="4 2" />}
-                  {analysis?.sma50 && <Line type="monotone" dataKey="sma50" stroke="#06b6d4" strokeWidth={1} dot={false} strokeDasharray="4 2" />}
-                </ComposedChart>
-              </ResponsiveContainer>
+              <LightweightChart data={analysis.priceData} height={350} />
             ) : <div className="text-center py-16 text-slate-500">Fiyat verisi yok</div>}
           </ChartCard>
         </div>
