@@ -25,7 +25,7 @@ function lerpColor(a, b, t) {
   const rr = Math.round(ar + (br - ar) * t);
   const rg = Math.round(ag + (bg - ag) * t);
   const rb = Math.round(ab + (bb - ab) * t);
-  return `rgb(${rr},${rg},${rb})`;
+  return '#' + [rr, rg, rb].map(v => v.toString(16).padStart(2, '0')).join('');
 }
 
 export default function ScrollCanvas() {

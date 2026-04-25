@@ -12,29 +12,29 @@ export const authenticate = async (req, res, next) => {
       token = req.query.token;
     }
 
-    if (!token) {
-      return res.status(401).json({ error: 'Yetkilendirme hatası: Token bulunamadı' });
+    // Token varsa doğrula ve kullanıcıyı ata
+    if (token) {
+      const decoded = verifyToken(token);
+      if (decoded && decoded.userId) {
+        const user = await prisma.user.findUnique({
+          where: { id: decoded.userId },
+          select: { id: true, email: true, name: true }
+        });
+        if (user) {
+          req.user = user;
+        }
+      }
     }
 
-    const decoded = verifyToken(token);
-
-    if (!decoded || !decoded.userId) {
-      return res.status(401).json({ error: 'Yetkilendirme hatası: Geçersiz token' });
+    // Token yoksa veya geçersizse bile devam et (Auth devre dışı)
+    if (!req.user) {
+      req.user = { id: 1, email: 'guest@finansradar.com', name: 'Misafir' };
     }
 
-    const user = await prisma.user.findUnique({
-      where: { id: decoded.userId },
-      select: { id: true, email: true, name: true }
-    });
-
-    if (!user) {
-      return res.status(401).json({ error: 'Kullanıcı bulunamadı' });
-    }
-
-    req.user = user;
     next();
   } catch (error) {
     console.error('Auth middleware error:', error);
-    res.status(500).json({ error: 'Sunucu hatası: Token doğrulanamadı' });
+    req.user = { id: 1, email: 'guest@finansradar.com', name: 'Misafir' };
+    next();
   }
 };

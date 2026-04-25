@@ -49,6 +49,11 @@
             "date": 1777137775816,
             "name": "logs\\finansradar-2026-04-25.log",
             "hash": "54b2ed9299eced5b346e7f256ac3af6a7290ff1f9a2f11dff533192369e2b42a"
+        },
+        {
+            "date": 1777151973628,
+            "name": "logs\\finansradar-2026-04-26.log",
+            "hash": "632b8982f9822d8ee92d253d8a5f67f667a454bc644a2867b55e9a1ee0763836"
         }
     ],
     "hashType": "sha256"
