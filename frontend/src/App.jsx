@@ -7,7 +7,6 @@ import ScrollCanvas from './components/ScrollCanvas'
 import Dashboard from './pages/Dashboard'
 import Portfolio from './pages/Portfolio'
 import Signals from './pages/Signals'
-import Backtest from './pages/Backtest'
 import Macro from './pages/Macro'
 import Settings from './pages/Settings'
 import StockDetail from './pages/StockDetail'
@@ -28,7 +27,6 @@ function AnimatedRoutes() {
             <Route path="/" element={<Dashboard />} />
             <Route path="/portfolio" element={<Portfolio />} />
             <Route path="/signals" element={<Signals />} />
-            <Route path="/backtest" element={<Backtest />} />
             <Route path="/macro" element={<Macro />} />
             <Route path="/scanner" element={<Scanner />} />
             <Route path="/settings" element={<Settings />} />

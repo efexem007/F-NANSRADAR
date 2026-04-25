@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { Menu, X, Search, TrendingUp, Star, Radar, Settings, Wallet, TestTube, Globe, LayoutDashboard, Heart, BarChart3 } from 'lucide-react';
+import { Menu, X, Search, TrendingUp, Star, Radar, Settings, Wallet, Globe, LayoutDashboard, Heart, BarChart3 } from 'lucide-react';
 
 export const Navbar = ({ onSearch }) => {
   const [isScrolled, setIsScrolled] = useState(false);
@@ -23,7 +23,6 @@ export const Navbar = ({ onSearch }) => {
     { path: '/scanner', label: 'Scanner', icon: Radar },
     { path: '/signals', label: 'Sinyaller', icon: Star },
     { path: '/portfolio', label: 'Portföy', icon: Wallet },
-    { path: '/backtest', label: 'Backtest', icon: TestTube },
     { path: '/montecarlo', label: 'Monte Carlo', icon: BarChart3 },
     { path: '/macro', label: 'Makro', icon: Globe },
   ];
