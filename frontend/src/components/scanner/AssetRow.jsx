@@ -1,14 +1,7 @@
 // v6.0-F-NANSRADAR Gelistirme: AssetRow component refactoring — optimized with React.memo
 import React, { memo } from 'react';
-import { Star, StarOff, ArrowUpRight, ArrowDownRight, X } from 'lucide-react';
-
-const SIGNAL_COLORS = {
-  'GÜÇLÜ AL': { bg: 'bg-emerald-500/20', text: 'text-emerald-400', border: 'border-emerald-500/30' },
-  'AL': { bg: 'bg-green-500/15', text: 'text-green-400', border: 'border-green-500/30' },
-  'BEKLE': { bg: 'bg-amber-500/15', text: 'text-amber-400', border: 'border-amber-500/30' },
-  'SAT': { bg: 'bg-orange-500/15', text: 'text-orange-400', border: 'border-orange-500/30' },
-  'GÜÇLÜ SAT': { bg: 'bg-red-500/20', text: 'text-red-400', border: 'border-red-500/30' },
-};
+import { Star, StarOff, ArrowUpRight, ArrowDownRight } from 'lucide-react';
+import { SIGNAL_COLORS } from '../../constants/colors';
 
 function ChangeBadge({ value, small = false }) {
   if (value == null) return null;

@@ -9,15 +9,7 @@ import ChartCard from '../components/ChartCard'
 import ChartTooltip from '../components/ChartTooltip'
 import { ArrowLeft, RefreshCw, Activity, TrendingUp, TrendingDown, AlertTriangle, BarChart2, Zap, ChevronDown, ChevronRight, Target, Clock, Eye, History, Layers, Shield, X, Info, ShieldCheck, ShieldAlert, ShieldQuestion } from 'lucide-react'
 
-const SIGNAL_STYLES = {
-  'GÜÇLÜ AL': 'bg-emerald-500/20 text-emerald-400 border-emerald-500/40',
-  'GUCLU AL':  'bg-emerald-500/20 text-emerald-400 border-emerald-500/40',
-  'AL':        'bg-green-500/20 text-green-400 border-green-500/40',
-  'BEKLE':     'bg-amber-500/20 text-amber-400 border-amber-500/40',
-  'SAT':       'bg-pink-500/20 text-pink-400 border-pink-500/40',
-  'GÜÇLÜ SAT': 'bg-red-500/20 text-red-400 border-red-500/40',
-  'GUCLU SAT': 'bg-red-500/20 text-red-400 border-red-500/40',
-}
+import { SIGNAL_STYLES } from '../constants/colors'
 
 const COLOR_MAP = { green: '#10b981', cyan: '#06b6d4', yellow: '#f59e0b', red: '#f43f5e', gray: '#64748b' }
 

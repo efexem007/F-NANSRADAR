@@ -14,13 +14,7 @@ import {
 // HELPERS & CONSTANTS
 // ═══════════════════════════════════════════════════════════════════════════
 
-const SIGNAL_COLORS = {
-  'GÜÇLÜ AL': { bg: 'rgba(16,185,129,0.15)', text: '#34d399', glow: '#10b981' },
-  'AL': { bg: 'rgba(74,222,128,0.12)', text: '#4ade80', glow: '#22c55e' },
-  'BEKLE': { bg: 'rgba(251,191,36,0.12)', text: '#fbbf24', glow: '#f59e0b' },
-  'SAT': { bg: 'rgba(251,146,60,0.12)', text: '#fb923c', glow: '#f97316' },
-  'GÜÇLÜ SAT': { bg: 'rgba(248,113,113,0.15)', text: '#f87171', glow: '#ef4444' },
-};
+import { SIGNAL_COLORS } from '../constants/colors';
 
 // ═══════════════════════════════════════════════════════════════════════════
 // ANIMATED CARD COMPONENT
@@ -120,13 +114,7 @@ function StockCard({ stock, onNavigate, index }) {
         {/* Signal badge if available */}
         {stock.signal && (
           <div className="mt-2">
-            <span
-              className="inline-block text-[9px] font-bold px-2 py-0.5 rounded-full"
-              style={{
-                backgroundColor: SIGNAL_COLORS[stock.signal]?.bg || 'rgba(100,100,100,0.1)',
-                color: SIGNAL_COLORS[stock.signal]?.text || '#94a3b8'
-              }}
-            >
+            <span className={`inline-block text-[9px] font-bold px-2 py-0.5 rounded-full border ${SIGNAL_COLORS[stock.signal]?.bg || 'bg-slate-500/10'} ${SIGNAL_COLORS[stock.signal]?.text || 'text-slate-400'} ${SIGNAL_COLORS[stock.signal]?.border || 'border-slate-500/20'}`}>
               {stock.signal}
             </span>
           </div>
