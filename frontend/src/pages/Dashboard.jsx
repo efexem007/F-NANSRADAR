@@ -14,7 +14,8 @@ import MonthlyChangeChart from '../components/charts/MonthlyChangeChart'
 import CumulativeChart from '../components/charts/CumulativeChart'
 import VolatilityRadar from '../components/charts/VolatilityRadar'
 import RiskGauge from '../components/charts/RiskGauge'
-import { TrendingUp, Globe } from 'lucide-react'
+import { TrendingUp, Globe, ArrowUpRight, ArrowDownRight, Activity, BarChart3, Zap, TrendingDown } from 'lucide-react'
+import { motion } from 'framer-motion'
 
 const Dashboard = () => {
   const [portfolio, setPortfolio] = useState({ items: [], summary: {} })
@@ -281,6 +282,37 @@ const Dashboard = () => {
           <input type="text" placeholder="Hisse ara... (THYAO...)" value={search} onChange={e => setSearch(e.target.value)}
             className="bg-white/5 border border-white/10 rounded-xl px-4 py-2 text-sm text-slate-300 placeholder-slate-500 focus:outline-none focus:border-purple-500/50 w-64" />
         </form>
+      </div>
+
+      {/* TradingView-style Market Summary Bar */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-6 gap-2">
+        {[
+          { label: 'BIST 100', value: 'XU100.IS', icon: BarChart3, color: 'text-purple-400' },
+          { label: 'BIST 30', value: 'XU030.IS', icon: Activity, color: 'text-cyan-400' },
+          { label: 'USD/TRY', value: 'USDTRY=X', icon: Zap, color: 'text-amber-400' },
+          { label: 'Altın', value: 'GC=F', icon: TrendingUp, color: 'text-yellow-400' },
+          { label: 'BTC', value: 'BTC-USD', icon: Zap, color: 'text-emerald-400' },
+          { label: 'NASDAQ', value: '^IXIC', icon: TrendingDown, color: 'text-pink-400' },
+        ].map((item, i) => (
+          <motion.div
+            key={item.label}
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: i * 0.05 }}
+            className="glass-card p-2.5 cursor-pointer hover:bg-white/[0.06] transition-colors"
+            onClick={() => window.location.href = `/stock/${item.value}`}
+          >
+            <div className="flex items-center justify-between mb-1">
+              <span className="text-[10px] text-slate-500 font-semibold">{item.label}</span>
+              <item.icon size={12} className={item.color} />
+            </div>
+            <div className="text-sm font-bold font-mono text-white">—</div>
+            <div className="flex items-center gap-0.5 text-[10px]">
+              <ArrowUpRight size={10} className="text-emerald-400" />
+              <span className="text-emerald-400 font-mono">%0.00</span>
+            </div>
+          </motion.div>
+        ))}
       </div>
 
       {/* Madde 4: Timeline Slider */}
