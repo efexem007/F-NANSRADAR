@@ -57,8 +57,22 @@ process.on('unhandledRejection', (reason, promise) => {
 app.use(helmet({
   contentSecurityPolicy: false, // API sunucusu — CSP gerekmez
 }));
+const ALLOWED_ORIGINS = [
+  'http://localhost:5173',
+  'http://localhost:5174',
+  'http://127.0.0.1:5173',
+  'http://127.0.0.1:5174',
+  process.env.ALLOWED_ORIGIN,
+].filter(Boolean);
+
 app.use(cors({
-  origin: process.env.ALLOWED_ORIGIN || 'http://localhost:5173',
+  origin: (origin, callback) => {
+    if (!origin || ALLOWED_ORIGINS.includes(origin)) {
+      callback(null, true);
+    } else {
+      callback(new Error('CORS policy: Origin not allowed'));
+    }
+  },
   credentials: true,
 }));
 app.use(express.json({ limit: '1mb' }));
@@ -122,8 +136,9 @@ let io;
 try {
   io = new SocketIO(httpServer, {
     cors: {
-      origin: process.env.ALLOWED_ORIGIN || 'http://localhost:5173',
+      origin: ALLOWED_ORIGINS,
       methods: ['GET', 'POST'],
+      credentials: true,
     },
   });
 
