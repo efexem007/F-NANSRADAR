@@ -8,7 +8,15 @@ import { syncMacroData, getMacroData } from '../services/macroData.js';
 
 router.get('/', asyncHandler(async (req, res) => {
   const macros = await getMacroData();
-  res.json(macros);
+  // Dashboard'un beklediği array formatına dönüştür
+  const arr = [
+    { type: 'cds', value: macros.cds ?? 265, label: 'CDS Spread' },
+    { type: 'vix', value: macros.vix ?? 18.2, label: 'VIX' },
+    { type: 'interest', value: macros.interest ?? 50.0, label: 'Politika Faizi' },
+    { type: 'usdtry', value: macros.usdtry ?? 35.0, label: 'USD/TRY' },
+    { type: 'bist100', value: macros.bist100 ?? 9876, label: 'BIST 100' },
+  ];
+  res.json(arr);
 }));
 
 router.post('/sync', asyncHandler(async (req, res) => {

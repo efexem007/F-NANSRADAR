@@ -163,12 +163,14 @@ export default function Watchlist() {
     localStorage.setItem('fr_custom_lists', JSON.stringify(updated));
   };
 
-  const filteredStocks = allStocks.filter(s => {
-    const q = search.toLowerCase();
-    const t = (s.ticker || '').replace('.IS', '').toLowerCase();
-    const n = (s.name || '').toLowerCase();
-    return t.includes(q) || n.includes(q);
-  });
+  const filteredStocks = search
+    ? allStocks.filter(s => {
+        const q = search.toLowerCase();
+        const t = (s.ticker || '').replace('.IS', '').toLowerCase();
+        const n = (s.name || '').toLowerCase();
+        return t.includes(q) || n.includes(q);
+      })
+    : allStocks.slice(0, 50);
 
   return (
     <div className="space-y-6 animate-fade-in px-4 max-w-[1440px] mx-auto pb-8">

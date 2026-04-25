@@ -1,6 +1,7 @@
 import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from 'react-router-dom'
 import { AnimatePresence, motion } from 'framer-motion'
 import { Toaster } from 'react-hot-toast'
+import { AuthProvider } from './context/AuthContext'
 import Layout from './components/layout/Layout'
 import ScrollCanvas from './components/ScrollCanvas'
 
@@ -45,11 +46,13 @@ function AnimatedRoutes() {
 function App() {
   return (
     <Router>
-      <ScrollCanvas />
-      <AnimatedRoutes />
-      <Toaster position="top-right" toastOptions={{
-        style: { background: '#1a1a35', color: '#e2e8f0', border: '1px solid rgba(255,255,255,0.1)' }
-      }} />
+      <AuthProvider>
+        <ScrollCanvas />
+        <AnimatedRoutes />
+        <Toaster position="top-right" toastOptions={{
+          style: { background: '#1a1a35', color: '#e2e8f0', border: '1px solid rgba(255,255,255,0.1)' }
+        }} />
+      </AuthProvider>
     </Router>
   )
 }

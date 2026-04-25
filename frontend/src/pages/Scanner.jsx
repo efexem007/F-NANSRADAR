@@ -13,6 +13,20 @@ import Backtest from './Backtest';
 import AssetRow from '../components/scanner/AssetRow';
 
 // ═══════════════════════════════════════════════════════════════════════════
+// GLOBAL SCAN STATE (v6.1-F-NANSRADAR: Background scan support)
+// ═══════════════════════════════════════════════════════════════════════════
+
+const globalScanState = {
+  setScanning: null,
+  setScanProgress: null,
+  setScanResults: null,
+  setAiPicks: null,
+};
+
+let lastScanResultsSaveTime = 0;
+const SCAN_SAVE_INTERVAL = 3000; // ms
+
+// ═══════════════════════════════════════════════════════════════════════════
 // MARKETS CONFIG
 // ═══════════════════════════════════════════════════════════════════════════
 
@@ -372,54 +386,100 @@ export default function Scanner() {
     }
   };
 
+  // v6.1-F-NANSRADAR: Global EventSource so scan continues in background
   const eventSourceRef = React.useRef(null);
   const cleanupEventSource = React.useCallback(() => {
     if (eventSourceRef.current) {
       eventSourceRef.current.close();
       eventSourceRef.current = null;
     }
+    window.scanEventSource = null;
+    window.scanEventHandlers = null;
   }, []);
 
-  // Component unmount olduğunda EventSource'u temizle
-  React.useEffect(() => {
-    return () => {
-      cleanupEventSource();
-    };
-  }, [cleanupEventSource]);
+  // Register global state setters so background scan can update UI on remount
+  useEffect(() => {
+    globalScanState.setScanning = setScanning;
+    globalScanState.setScanProgress = setScanProgress;
+    globalScanState.setScanResults = setScanResults;
+    globalScanState.setAiPicks = setAiPicks;
+  }, [setScanning, setScanProgress, setScanResults, setAiPicks]);
 
-  // Scan market (Real-time Streaming)
+  // Component mount olduğunda: eğer globalde devam eden bir tarama varsa ona yeniden bağlan
+  React.useEffect(() => {
+    const globalEs = window.scanEventSource;
+    if (globalEs && globalEs.readyState !== EventSource.CLOSED) {
+      eventSourceRef.current = globalEs;
+      globalScanState.setScanning?.(true);
+      const handlers = window.scanEventHandlers;
+      if (handlers) {
+        globalEs.addEventListener('progress', handlers.handleProgress);
+        globalEs.addEventListener('assetAnalyzed', handlers.handleAssetAnalyzed);
+        globalEs.addEventListener('assetSkipped', handlers.handleAssetSkipped);
+        globalEs.addEventListener('done', handlers.handleDone);
+        globalEs.addEventListener('error', handlers.handleError);
+      }
+    }
+  }, []);
+
+  // Scan market (Real-time Streaming) — v6.1 background scan support
   const handleScan = React.useCallback((marketOrSymbols = activeMarket) => {
-    // Önceki bağlantıyı temizle
+    // Eğer zaten devam eden bir global tarama varsa onu kullan
+    const existingEs = window.scanEventSource;
+    if (existingEs && existingEs.readyState !== EventSource.CLOSED) {
+      setScanning(true);
+      return;
+    }
+
     cleanupEventSource();
     toast.dismiss();
 
     const isCustomList = Array.isArray(marketOrSymbols);
     const symbolsParam = isCustomList ? `&symbols=${marketOrSymbols.join(',')}` : `&market=${marketOrSymbols}`;
-    
-    // Filtre parametreleri
     const filterParams = `&timeFrame=${timeFrame}`;
 
     setScanning(true);
+    globalScanState.setScanning?.(true);
     toast.loading(`${isCustomList ? `${marketOrSymbols.length} Seçili Varlık` : marketOrSymbols === 'all' ? 'Tüm piyasalar' : marketOrSymbols.toUpperCase()} taranıyor...`, { id: 'scan-toast' });
-    
-    // Yeni tarama başlatıldığında eski sonuçları sıfırla (S4 fix)
+
     setScanResults({ totalScanned: 0, totalPassed: 0, results: [], totalErrors: 0, scanTime: null });
     setScanProgress({ current: 0, total: 0, text: 'Başlatılıyor...' });
 
     const token = localStorage.getItem('token') || '';
     const eventSource = new EventSource(`/api/universal/scan-stream?token=${token}${symbolsParam}${filterParams}`);
     eventSourceRef.current = eventSource;
+    window.scanEventSource = eventSource;
+
+    // Helper: update both local and global state
+    const updateProgress = (val) => {
+      setScanProgress(val);
+      globalScanState.setScanProgress?.(val);
+      localStorage.setItem('scanProgress', JSON.stringify(val));
+    };
+
+    const updateResults = (updater) => {
+      setScanResults(prev => {
+        const next = typeof updater === 'function' ? updater(prev) : updater;
+        globalScanState.setScanResults?.(next);
+        const now = Date.now();
+        if (now - lastScanResultsSaveTime > SCAN_SAVE_INTERVAL) {
+          lastScanResultsSaveTime = now;
+          localStorage.setItem('lastScanResults', JSON.stringify(next));
+        }
+        return next;
+      });
+    };
 
     // Event handler'ları tanımla
     const handleProgress = (event) => {
       const { current, total, text } = JSON.parse(event.data);
-      setScanProgress({ current, total, text: text || `${current}/${total} tarandı` });
+      updateProgress({ current, total, text: text || `${current}/${total} tarandı` });
       toast.loading(`Taranıyor... ${current}/${total}`, { id: 'scan-toast' });
     };
 
     const handleAssetAnalyzed = (event) => {
       const asset = JSON.parse(event.data);
-      setScanResults(prev => {
+      updateResults(prev => {
         const prevResults = prev?.results || [];
         const existingIdx = prevResults.findIndex(r => r.symbol === asset.symbol);
         let newResults;
@@ -441,24 +501,28 @@ export default function Scanner() {
     const handleAssetSkipped = (event) => {
       const { symbol, reason } = JSON.parse(event.data);
       console.warn(`[Tara] Atlandı: ${symbol} — ${reason}`);
-      setScanResults(prev => ({
+      updateResults(prev => ({
         ...prev,
         totalErrors: (prev?.totalErrors || 0) + 1
       }));
     };
 
     const handleDone = (event) => {
-      cleanupEventSource();
       setScanning(false);
+      globalScanState.setScanning?.(false);
       setScanResults(prev => {
         const finalResults = { ...prev, scanTime: new Date().toISOString() };
         const newPicks = generateLocalAIPicks(finalResults);
         setAiPicks(newPicks);
+        globalScanState.setAiPicks?.(newPicks);
         localStorage.setItem('lastScanResults', JSON.stringify(finalResults));
         localStorage.setItem('lastAiPicks', JSON.stringify(newPicks));
+        localStorage.setItem('lastScanTime', finalResults.scanTime);
+        localStorage.removeItem('scanInProgress');
         toast.success(`Tarama Tamamlandı! ${finalResults.totalPassed || 0} varlık analiz edildi.`, { id: 'scan-toast', duration: 5000 });
         return finalResults;
       });
+      // Don't close ES here; let it close naturally or on next cleanup
     };
 
     const handleError = (event) => {
@@ -466,7 +530,17 @@ export default function Scanner() {
       if (eventSource.readyState === EventSource.CONNECTING) return;
       cleanupEventSource();
       setScanning(false);
+      globalScanState.setScanning?.(false);
       toast.error('Ağ bağlantısı kesildi. Lütfen tekrar deneyin.', { id: 'scan-toast' });
+    };
+
+    // Store handlers globally for remount re-attachment
+    window.scanEventHandlers = {
+      handleProgress,
+      handleAssetAnalyzed,
+      handleAssetSkipped,
+      handleDone,
+      handleError,
     };
 
     // Event listener'ları ekle
@@ -475,15 +549,6 @@ export default function Scanner() {
     eventSource.addEventListener('assetSkipped', handleAssetSkipped);
     eventSource.addEventListener('done', handleDone);
     eventSource.addEventListener('error', handleError);
-
-    // Cleanup fonksiyonu
-    return () => {
-      eventSource.removeEventListener('progress', handleProgress);
-      eventSource.removeEventListener('assetAnalyzed', handleAssetAnalyzed);
-      eventSource.removeEventListener('assetSkipped', handleAssetSkipped);
-      eventSource.removeEventListener('done', handleDone);
-      eventSource.removeEventListener('error', handleError);
-    };
   }, [activeMarket, timeFrame, cleanupEventSource]);
 
   // Quick Scan — tek sembol tarama (scope bug fix)
