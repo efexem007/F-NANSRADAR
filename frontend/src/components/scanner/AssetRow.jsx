@@ -1,6 +1,6 @@
 // v6.0-F-NANSRADAR Gelistirme: AssetRow component refactoring — optimized with React.memo
 import React, { memo } from 'react';
-import { Star, StarOff, ArrowUpRight, ArrowDownRight } from 'lucide-react';
+import { Star, StarOff, ArrowUpRight, ArrowDownRight, Info } from 'lucide-react';
 import { SIGNAL_COLORS } from '../../constants/colors';
 
 function ChangeBadge({ value, small = false }) {
@@ -23,7 +23,7 @@ function formatPrice(price, type) {
   return `₺${price.toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
 
-function AssetRow({ asset, onWatch, isWatched, onNavigate, isSelected, onSelect }) {
+function AssetRow({ asset, onWatch, isWatched, onNavigate, isSelected, onSelect, onShowDetail }) {
   const sc = SIGNAL_COLORS[asset.signal] || SIGNAL_COLORS['BEKLE'];
 
   return (
@@ -103,6 +103,17 @@ function AssetRow({ asset, onWatch, isWatched, onNavigate, isSelected, onSelect 
       {/* Volatility */}
       <td className="py-2.5 px-2 text-center hidden xl:table-cell">
         <span className="text-[10px] font-mono text-slate-400">{asset.volatility ? `%${asset.volatility}` : '—'}</span>
+      </td>
+
+      {/* Detail */}
+      <td className="py-2.5 px-2 text-center">
+        <button
+          onClick={(e) => { e.stopPropagation(); onShowDetail && onShowDetail(asset); }}
+          className="p-1 rounded-md hover:bg-white/5 transition-colors"
+          title="Algoritma Röntgeni"
+        >
+          <Info size={14} className="text-slate-600 hover:text-cyan-400" />
+        </button>
       </td>
 
       {/* Watch */}

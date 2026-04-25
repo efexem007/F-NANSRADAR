@@ -277,6 +277,7 @@ export default function Scanner() {
   const [minScore, setMinScore] = useState(0); // 0, 30, 50, 60, 70, 80
   const [showFilters, setShowFilters] = useState(false);
   const activeFilterCount = signalFilters.length + riskFilters.length + returnFilters.length + (minScore > 0 ? 1 : 0);
+  const [detailModal, setDetailModal] = useState(null);
 
   // v6.0-F-NANSRADAR Gelistirme: State persistence effects
   useEffect(() => {
@@ -1153,6 +1154,7 @@ export default function Scanner() {
                           <th className="text-center py-2 px-2 hidden lg:table-cell cursor-pointer hover:text-slate-300" onClick={() => { setSortBy('opportunityScore'); setSortDir(d => d === 'desc' ? 'asc' : 'desc'); }}>Skor</th>
                           <th className="text-center py-2 px-2 hidden xl:table-cell cursor-pointer hover:text-slate-300" onClick={() => { setSortBy('indicators.rsi'); setSortDir(d => d === 'desc' ? 'asc' : 'desc'); }}>RSI</th>
                           <th className="text-center py-2 px-2 hidden xl:table-cell">Vol.</th>
+                          <th className="text-center py-2 px-2 w-8">Detay</th>
                           <th className="text-center py-2 px-2 w-8">⭐</th>
                         </tr>
                       </thead>
@@ -1166,6 +1168,7 @@ export default function Scanner() {
                             onSelect={toggleSelect}
                             onWatch={toggleWatchlist}
                             onNavigate={navigateToAsset}
+                            onShowDetail={(asset) => setDetailModal(asset)}
                           />
                         ))}
                       </tbody>
@@ -1282,6 +1285,94 @@ export default function Scanner() {
                 </div>
               )}
             </ChartCard>
+          </div>
+        </div>
+      )}
+
+      {/* ═══ ALGORİTMA DETAY MODALI (Algoritma Röntgeni) ═══ */}
+      {detailModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-fade-in">
+          <div className="glass-card w-full max-w-md p-6 relative max-h-[85vh] overflow-y-auto">
+            <button onClick={() => setDetailModal(null)} className="absolute top-4 right-4 text-slate-400 hover:text-white transition-colors">✕</button>
+            <h2 className="text-xl font-bold bg-gradient-to-r from-purple-400 to-cyan-400 bg-clip-text text-transparent mb-1">
+              {detailModal.symbol?.replace('.IS','')} Algoritma Röntgeni
+            </h2>
+            <div className={`text-sm font-semibold mb-5 ${
+              detailModal.signal?.includes('GÜÇLÜ AL') ? 'text-emerald-400' : 
+              detailModal.signal?.includes('AL') ? 'text-green-400' : 
+              detailModal.signal?.includes('SAT') ? 'text-red-400' : 
+              'text-amber-400'
+            }`}>
+              Nihai Karar: {detailModal.signal} (Toplam Skor: {detailModal.opportunityScore || detailModal.score})
+            </div>
+            
+            <div className="space-y-4">
+              {(() => {
+                let d = null;
+                try { d = typeof detailModal.details === 'string' ? JSON.parse(detailModal.details) : detailModal.details; } catch(e) {}
+                
+                // Fallback: detailModal içindeki verilerden skorları çıkar
+                const techScore = d?.techScore ?? detailModal.indicators?.rsi ? Math.round((100 - Math.abs(detailModal.indicators.rsi - 50)) * 1.2) : 50;
+                const fundScore = d?.fundScore ?? detailModal.fundamental?.pe ? Math.round(100 - detailModal.fundamental.pe * 2) : 50;
+                const macroScoreVal = d?.macroScoreVal ?? detailModal.macro?.score ?? 50;
+                const haberPuan = d?.haberPuan ?? detailModal.sentiment?.score ?? 50;
+                const riskScore = d?.riskScore ?? detailModal.riskScore ?? (100 - (detailModal.volatility || 0));
+                
+                return [
+                  { label: 'Teknik Analiz (MACD, RSI, BB)', val: Math.max(0, Math.min(100, techScore)), color: 'bg-purple-500', weight: '35%' },
+                  { label: 'Temel Analiz (Rasyolar)', val: Math.max(0, Math.min(100, fundScore)), color: 'bg-cyan-500', weight: '25%' },
+                  { label: 'Makro Ekonomi (CDS, VIX)', val: Math.max(0, Math.min(100, macroScoreVal)), color: 'bg-blue-500', weight: '20%' },
+                  { label: 'Sentiment (Haber Duygusu)', val: Math.max(0, Math.min(100, haberPuan)), color: 'bg-emerald-500', weight: '10%' },
+                  { label: 'Risk ve Volatilite Kalkanı', val: Math.max(0, Math.min(100, riskScore)), color: 'bg-amber-500', weight: '10%' },
+                ].map(item => (
+                  <div key={item.label}>
+                    <div className="flex justify-between text-xs mb-1.5">
+                      <span className="text-slate-300 flex items-center gap-1.5">
+                        <span className={`w-2 h-2 rounded-full ${item.color}`}></span>
+                        {item.label} <span className="text-slate-500 text-[10px] ml-1">(Ağırlık: {item.weight})</span>
+                      </span>
+                      <span className="text-white font-bold">{item.val} / 100</span>
+                    </div>
+                    <div className="h-2 w-full bg-[#0d0d1a] border border-white/5 rounded-full overflow-hidden">
+                      <div className={`h-full ${item.color} rounded-full`} style={{ width: `${item.val}%` }}></div>
+                    </div>
+                  </div>
+                ));
+              })()}
+            </div>
+
+            {/* Ekstra Metrikler */}
+            {detailModal.indicators && (
+              <div className="mt-5 pt-4 border-t border-white/5 grid grid-cols-3 gap-3 text-center">
+                <div>
+                  <div className="text-[10px] text-slate-500 uppercase">RSI</div>
+                  <div className="text-sm font-mono font-bold text-white">{detailModal.indicators.rsi ?? '—'}</div>
+                </div>
+                <div>
+                  <div className="text-[10px] text-slate-500 uppercase">MACD</div>
+                  <div className="text-sm font-mono font-bold text-white">{detailModal.indicators.macd ?? '—'}</div>
+                </div>
+                <div>
+                  <div className="text-[10px] text-slate-500 uppercase">BB</div>
+                  <div className="text-sm font-mono font-bold text-white">{detailModal.indicators.bbWidth ? `%${detailModal.indicators.bbWidth}` : '—'}</div>
+                </div>
+              </div>
+            )}
+
+            <div className="mt-5 flex gap-2">
+              <button 
+                onClick={() => { navigateToAsset(detailModal); setDetailModal(null); }}
+                className="flex-1 py-2 rounded-xl bg-gradient-to-r from-purple-600/30 to-cyan-600/30 border border-purple-500/40 text-purple-300 text-xs font-bold hover:text-white transition-all"
+              >
+                Hisse Detayına Git →
+              </button>
+              <button 
+                onClick={() => setDetailModal(null)}
+                className="px-4 py-2 rounded-xl bg-white/5 border border-white/10 text-slate-400 text-xs font-bold hover:text-white transition-all"
+              >
+                Kapat
+              </button>
+            </div>
           </div>
         </div>
       )}

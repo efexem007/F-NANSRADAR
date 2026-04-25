@@ -33,6 +33,20 @@ const Signals = () => {
   // Tarama state
   const [scanning, setScanning] = useState(false)
   const [scanProgress, setScanProgress] = useState({ current: 0, total: 0, text: '' })
+
+  // ═══ SİNYAL MOTORU (Tek Hisse Hesaplama) ═══
+  const [calcTicker, setCalcTicker] = useState('')
+  const [calcLoading, setCalcLoading] = useState(false)
+  const [calcResult, setCalcResult] = useState(null)
+
+  const handleCalc = async (e) => {
+    e.preventDefault(); if (!calcTicker) return
+    try { setCalcLoading(true); setCalcResult(null)
+      const res = await client.post('/signal/calculate', { ticker: calcTicker.toUpperCase() })
+      setCalcResult(res.data); fetchSignals()
+    } catch (err) { alert(err.response?.data?.error || 'Hata') }
+    finally { setCalcLoading(false) }
+  }
   
   // Sinyalleri kalıcı olarak Local Storage'dan oku veya Scanner'dan anında devral!
   const [liveSignals, setLiveSignals] = useState(() => {
@@ -290,8 +304,51 @@ const Signals = () => {
         </div>
       )}
 
-      {/* Sinyal Dağılımı Kartları */}
-      {displayData.length > 0 && (
+      {/* ═══ SİNYAL MOTORU ═══ */}
+      <div className="grid grid-cols-12 gap-6">
+        <div className="col-span-12 md:col-span-4">
+          <div className="glass-card p-5">
+            <div className="flex items-center gap-2 mb-4">
+              <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-purple-500/20 to-cyan-500/20 flex items-center justify-center">
+                <Zap size={16} className="text-purple-300" />
+              </div>
+              <div>
+                <h3 className="text-sm font-bold text-white">Sinyal Motoru</h3>
+                <p className="text-[10px] text-slate-500">Tek hisse anlık analiz</p>
+              </div>
+            </div>
+            <p className="text-xs text-slate-500 mb-4">Temel, teknik ve makro göstergeleri ağırlıklandırarak anlık potansiyeli skorlar.</p>
+            <form onSubmit={handleCalc} className="space-y-3">
+              <div>
+                <label className="text-xs font-semibold text-slate-400 mb-1 block uppercase tracking-wider">Hisse Kodu</label>
+                <input placeholder="Örn: THYAO" value={calcTicker} onChange={e => setCalcTicker(e.target.value)} className="input-field uppercase w-full" />
+              </div>
+              <button type="submit" disabled={calcLoading} className="btn-primary w-full">
+                {calcLoading ? <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin inline-block" /> : <><Activity size={14} className="inline mr-1" /> Hesapla</>}
+              </button>
+            </form>
+            {calcResult && (
+              <div className="mt-5 p-4 rounded-xl bg-white/5 border border-white/10 animate-fade-in">
+                <div className="text-center mb-3">
+                  <span className="text-lg font-bold text-white">{calcResult.ticker}</span>
+                  <div className="mt-2">
+                    <span className={`text-xs font-bold px-3 py-1.5 rounded-full border ${SIGNAL_STYLES[calcResult.signal] || SIGNAL_STYLES['BEKLE']}`}>{calcResult.signal}</span>
+                  </div>
+                </div>
+                <div className="space-y-2 text-sm">
+                  <div className="flex justify-between"><span className="text-slate-500">Skor</span><span className="font-bold text-white">{calcResult.score}/100</span></div>
+                  <div className="w-full h-2 bg-white/5 rounded-full overflow-hidden">
+                    <div className="h-full bg-gradient-to-r from-red-500 via-yellow-500 to-green-500 rounded-full transition-all" style={{ width: `${calcResult.score}%` }} />
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+
+        <div className="col-span-12 md:col-span-8 space-y-5">
+          {/* Sinyal Dağılımı Kartları */}
+          {displayData.length > 0 && (
         <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
           {[
             { key: 'all', label: 'Tümü', count: displayData.length, color: 'from-purple-500/20 to-purple-500/5', textColor: 'text-purple-300' },
@@ -435,6 +492,8 @@ const Signals = () => {
               </tbody>
             </table>
           )}
+        </div>
+          </div>
         </div>
       </div>
     </div>
