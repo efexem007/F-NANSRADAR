@@ -14,7 +14,9 @@
     "kill-port": "^2.0.1"
   },
   "dependencies": {
+    "class-variance-authority": "^0.7.1",
     "cors": "^2.8.6",
-    "lightweight-charts": "^5.2.0"
+    "lightweight-charts": "^5.2.0",
+    "tailwind-merge": "^3.5.0"
   }
 }

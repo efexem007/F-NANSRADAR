@@ -1,5 +1,0 @@
-Lütfen hangi rehberden bahsettiğinizi açıklayın. "Aşama 1'den 6'ya kadar" hangi adımlardan oluşuyor? Hangi dosyaları oluşturmam veya güncellemem gerekiyor? Rehberin içeriğini (adımları, dosya yolları, kod değişiklikleri) sağlayın.
-
-Eğer rehberi önceki mesajlarda paylaştıysanız, bu sohbette göremedim. Lütfen rehber metnini bu sohbete ekleyin.
-
-Ardından, ilgili dosyaları değiştirmek için SEARCH/REPLACE blokları hazırlayacağım.
