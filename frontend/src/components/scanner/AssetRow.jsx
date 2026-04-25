@@ -1,5 +1,5 @@
-// v6.0-F-NANSRADAR Gelistirme: AssetRow component refactoring
-import React from 'react';
+// v6.0-F-NANSRADAR Gelistirme: AssetRow component refactoring — optimized with React.memo
+import React, { memo } from 'react';
 import { Star, StarOff, ArrowUpRight, ArrowDownRight, X } from 'lucide-react';
 
 const SIGNAL_COLORS = {
@@ -30,7 +30,7 @@ function formatPrice(price, type) {
   return `₺${price.toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
 
-export default function AssetRow({ asset, onWatch, isWatched, onNavigate, isSelected, onSelect }) {
+function AssetRow({ asset, onWatch, isWatched, onNavigate, isSelected, onSelect }) {
   const sc = SIGNAL_COLORS[asset.signal] || SIGNAL_COLORS['BEKLE'];
 
   return (
@@ -124,3 +124,15 @@ export default function AssetRow({ asset, onWatch, isWatched, onNavigate, isSele
     </tr>
   );
 }
+
+// Memoize to prevent unnecessary re-renders during scan streaming
+export default memo(AssetRow, (prev, next) => {
+  return (
+    prev.asset.symbol === next.asset.symbol &&
+    prev.asset.currentPrice === next.asset.currentPrice &&
+    prev.asset.signal === next.asset.signal &&
+    prev.asset.opportunityScore === next.asset.opportunityScore &&
+    prev.isWatched === next.isWatched &&
+    prev.isSelected === next.isSelected
+  );
+});

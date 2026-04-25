@@ -4,6 +4,7 @@ import { Toaster } from 'react-hot-toast'
 import { AuthProvider } from './context/AuthContext'
 import ProtectedRoute from './components/ProtectedRoute'
 import Layout from './components/layout/Layout'
+import ScrollCanvas from './components/ScrollCanvas'
 
 import Login from './pages/Login'
 import Register from './pages/Register'
@@ -51,6 +52,7 @@ function App() {
   return (
     <Router>
       <AuthProvider>
+        <ScrollCanvas />
         <AnimatedRoutes />
         <Toaster position="top-right" toastOptions={{
           style: { background: '#1a1a35', color: '#e2e8f0', border: '1px solid rgba(255,255,255,0.1)' }

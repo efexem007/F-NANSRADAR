@@ -7,11 +7,11 @@ const Layout = () => {
   const { user } = useContext(AuthContext)
 
   return (
-    <div className="flex min-h-screen bg-[#0d0d1a] text-slate-100">
-      <Sidebar />
-      <div className="flex-1 ml-[240px] flex flex-col">
+      <div className="flex min-h-screen bg-[#0d0d1a] text-slate-100 relative">
+      <Sidebar className="z-30" />
+      <div className="flex-1 ml-[240px] flex flex-col relative z-10">
         {/* Header with CANLI badge (Madde 8) */}
-        <header className="h-14 flex items-center justify-between px-8 border-b border-white/5 bg-[#0a0a1f]/80 backdrop-blur-md sticky top-0 z-20">
+        <header className="h-14 flex items-center justify-between px-8 border-b border-white/5 bg-[#0a0a1f]/80 backdrop-blur-md sticky top-0 z-30">
           <div className="text-sm text-slate-500">
             {new Date().toLocaleDateString('tr-TR', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
           </div>
@@ -32,7 +32,7 @@ const Layout = () => {
             </div>
           </div>
         </header>
-        <main className="flex-1 p-6 overflow-x-hidden">
+        <main className="flex-1 p-6 overflow-x-hidden relative z-10">
           <Outlet />
         </main>
       </div>
