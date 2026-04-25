@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import client from '../api/client';
@@ -752,60 +751,6 @@ export default function Scanner() {
       {/* Market Summary Bar */}
       {view !== 'lab' && scanResults && <MarketSummaryBar results={scanResults.results} />}
 
-      {/* ═══ SCANNER PROGRESS BAR ═══ */}
-      {view !== 'lab' && (scanning || scanProgress.total > 0) && (
-        <div className="glass-card p-4 animate-fade-in border border-purple-500/20 mb-5">
-          <div className="flex items-center justify-between mb-2">
-            <div className="flex items-center gap-2">
-              {scanning ? (
-                <div className="relative w-4 h-4">
-                  <div className="w-4 h-4 rounded-full border-2 border-purple-500 border-t-transparent animate-spin" />
-                </div>
-              ) : (
-                <div className="w-4 h-4 rounded-full bg-emerald-500 flex items-center justify-center">
-                  <span className="text-[8px] text-white font-bold">✓</span>
-                </div>
-              )}
-              <span className="text-xs font-bold text-white">
-                {scanning ? 'Tarama Devam Ediyor...' : '✅ Tarama Tamamlandı'}
-              </span>
-              {scanResults?.totalErrors > 0 && (
-                <span className="text-[10px] text-amber-400 bg-amber-500/10 border border-amber-500/20 px-2 py-0.5 rounded-full">
-                  {scanResults.totalErrors} hata atlandı
-                </span>
-              )}
-            </div>
-            <div className="flex items-center gap-3 text-xs">
-              <span className="font-mono text-slate-400">
-                {scanProgress.current}<span className="text-slate-600">/</span>{scanProgress.total}
-              </span>
-              <span className="font-mono font-bold text-purple-300 bg-purple-500/10 px-2 py-0.5 rounded-full text-[11px]">
-                {scanProgress.total > 0 ? Math.round((scanProgress.current / scanProgress.total) * 100) : 0}%
-              </span>
-            </div>
-          </div>
-
-          <div className="w-full h-2 bg-white/5 rounded-full overflow-hidden mb-2">
-            <div
-              className="h-full rounded-full transition-all duration-300 ease-out"
-              style={{
-                width: `${scanProgress.total > 0 ? Math.min(100, Math.round((scanProgress.current / scanProgress.total) * 100)) : 0}%`,
-                background: scanning
-                  ? 'linear-gradient(90deg, #8b5cf6, #06b6d4, #8b5cf6)'
-                  : 'linear-gradient(90deg, #10b981, #22c55e)',
-                backgroundSize: scanning ? '200% 100%' : '100% 100%',
-              }}
-            />
-          </div>
-
-          {scanProgress.text && (
-            <p className="text-[11px] text-slate-400 truncate font-mono">
-              {scanProgress.text}
-            </p>
-          )}
-        </div>
-      )}
-
       {view === 'lab' ? (
         <Backtest />
       ) : view === 'scanner' ? (
@@ -819,8 +764,8 @@ export default function Scanner() {
                   onClick={() => setActiveMarket(m.key)}
                   className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold transition-all ${
                     activeMarket === m.key
-                      ? "bg-gradient-to-r " + m.color + " text-white shadow-lg"
-                      : "bg-white/3 text-slate-400 hover:bg-white/5 hover:text-white"
+                      ? `bg-gradient-to-r ${m.color} text-white shadow-lg`
+                      : 'bg-white/3 text-slate-400 hover:bg-white/5 hover:text-white'
                   }`}
                 >
                   <span>{m.icon}</span> {m.label}
@@ -1086,6 +1031,35 @@ export default function Scanner() {
               </div>
             )}
           </div>
+
+          {/* ═══ TARAMA İLERLEME ÇUBUĞU (S3 fix) ═══ */}
+          {scanning && (
+            <div className="glass-card p-4 animate-fade-in">
+              <div className="flex items-center justify-between mb-2">
+                <div className="flex items-center gap-2">
+                  <div className="w-3 h-3 rounded-full bg-cyan-400 animate-pulse" />
+                  <span className="text-xs font-bold text-white">Tarama Devam Ediyor...</span>
+                </div>
+                <span className="text-xs font-mono text-slate-400">
+                  {scanProgress.current}/{scanProgress.total > 0 ? scanProgress.total : '?'}
+                  {scanProgress.total > 0 && ` (${Math.round((scanProgress.current / scanProgress.total) * 100)}%)`}
+                </span>
+              </div>
+              <div className="w-full h-2 bg-white/5 rounded-full overflow-hidden mb-2">
+                <div
+                  className="h-full rounded-full transition-all duration-300 ease-out"
+                  style={{
+                    width: `${scanProgress.total > 0 ? Math.min(100, Math.round((scanProgress.current / scanProgress.total) * 100)) : 5}%`,
+                    background: 'linear-gradient(90deg, #8b5cf6, #06b6d4)'
+                  }}
+                />
+              </div>
+              <div className="flex items-center justify-between">
+                <p className="text-[11px] text-slate-400 truncate">{scanProgress.text || 'Taranıyor...'}</p>
+                <p className="text-[11px] text-slate-500">Hata: {scanResults?.totalErrors || 0}</p>
+              </div>
+            </div>
+          )}
 
           {/* Quick Scan + Search */}
           <div className="flex gap-3">
