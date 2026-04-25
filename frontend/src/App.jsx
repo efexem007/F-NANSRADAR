@@ -14,6 +14,7 @@ import StockDetail from './pages/StockDetail'
 import Scanner from './pages/Scanner'
 import AllStocks from './pages/AllStocks'
 import Watchlist from './pages/Watchlist'
+import MonteCarlo from './pages/MonteCarlo'
 
 function AnimatedRoutes() {
   const location = useLocation()
@@ -33,8 +34,9 @@ function AnimatedRoutes() {
             <Route path="/settings" element={<Settings />} />
             <Route path="/stock/:ticker" element={<StockDetail />} />
             <Route path="/stocks" element={<AllStocks />} />
-            <Route path="/watchlist" element={<Watchlist />} />
-            <Route path="*" element={<Navigate to="/" replace />} />
+              <Route path="/watchlist" element={<Watchlist />} />
+              <Route path="/montecarlo" element={<MonteCarlo />} />
+              <Route path="*" element={<Navigate to="/" replace />} />
           </Route>
         </Routes>
       </motion.div>
